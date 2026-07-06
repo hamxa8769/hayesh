@@ -1,3 +1,14 @@
 {
-  "model": "claude-fable-5"
+  "model": "claude-fable-5",
+  "extraKnownMarketplaces": {
+    "ecc": {
+      "source": {
+        "source": "directory",
+        "path": "E:\\Programming\\Claude\\Lumora"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "ecc@ecc": true
+  }
 }
