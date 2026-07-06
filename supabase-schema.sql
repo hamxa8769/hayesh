@@ -1,5 +1,5 @@
 -- ============================================================
--- LUMORA — Complete Supabase Database Schema
+-- HAYESH — Complete Supabase Database Schema
 -- Run this in Supabase SQL Editor (all at once)
 -- ============================================================
 
@@ -529,7 +529,7 @@ insert into public.platform_settings (key, value, description) values
   ('seller_registration_fee_usd', '5', 'Seller registration fee in USD'),
   ('demo_lesson_duration_mins', '30', 'Default demo lesson duration in minutes'),
   ('parent_premium_price_usd', '9.99', 'Parent premium plan monthly price'),
-  ('ai_service_brand_name', '"LumoraAI Studio"', 'Brand name shown for AI service listings'),
+  ('ai_service_brand_name', '"HayeshAI Studio"', 'Brand name shown for AI service listings'),
   ('translation_feature_enabled', 'true', 'Global toggle for translation feature'),
   ('maintenance_mode', 'false', 'Put platform in maintenance mode');
 
@@ -599,7 +599,8 @@ create policy "Users can view their own profile"
 
 create policy "Users can update their own profile"
   on public.profiles for update
-  using (auth.uid() = id);
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
 
 create policy "Admin can view all profiles"
   on public.profiles for select
@@ -620,7 +621,8 @@ create policy "Teacher can view their own profile"
 
 create policy "Teacher can update their own profile"
   on public.teachers for update
-  using (user_id = auth.uid());
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 create policy "Admin can do everything with teachers"
   on public.teachers for all
@@ -672,6 +674,54 @@ create policy "Admin can manage platform settings"
 create policy "Anyone can read platform settings"
   on public.platform_settings for select
   using (true);
+
+-- ============================================================
+-- COLUMN-LEVEL GRANTS (privileged-column protection)
+-- RLS limits WHICH ROWS a user may touch; these grants limit
+-- WHICH COLUMNS. Approval status, roles, verification, fees,
+-- featuring, translation privileges, and stats are writable only
+-- via the service_role client (lib/supabase/admin.ts) in server
+-- code after verifying the caller is an admin.
+-- ============================================================
+
+revoke update on public.profiles from authenticated, anon;
+grant update (full_name, avatar_url, phone, country, city, bio)
+  on public.profiles to authenticated;
+
+revoke update on public.teachers from authenticated, anon;
+grant update (
+  display_name, tagline, intro_video_url, profile_photo_url,
+  education, experience, subjects, availability,
+  group_price_pkr, group_price_usd,
+  standard_price_pkr, standard_price_usd,
+  private_price_pkr, private_price_usd
+) on public.teachers to authenticated;
+
+revoke insert, update on public.gigs from authenticated, anon;
+grant insert (
+  seller_id, title, category, subcategory, description, tags,
+  gallery_urls, faq,
+  basic_title, basic_description, basic_price_pkr, basic_price_usd,
+  basic_delivery_days, basic_revisions, basic_features,
+  standard_title, standard_description, standard_price_pkr,
+  standard_price_usd, standard_delivery_days, standard_revisions,
+  standard_features,
+  premium_title, premium_description, premium_price_pkr,
+  premium_price_usd, premium_delivery_days, premium_revisions,
+  premium_features
+) on public.gigs to authenticated;
+grant update (
+  title, category, subcategory, description, tags,
+  gallery_urls, faq,
+  basic_title, basic_description, basic_price_pkr, basic_price_usd,
+  basic_delivery_days, basic_revisions, basic_features,
+  standard_title, standard_description, standard_price_pkr,
+  standard_price_usd, standard_delivery_days, standard_revisions,
+  standard_features,
+  premium_title, premium_description, premium_price_pkr,
+  premium_price_usd, premium_delivery_days, premium_revisions,
+  premium_features
+) on public.gigs to authenticated;
 
 -- ============================================================
 -- INDEXES (performance)

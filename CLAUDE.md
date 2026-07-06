@@ -1,11 +1,11 @@
-# 🌟 LUMORA — Claude Code Master Instructions
+# 🌟 HAYESH — Claude Code Master Instructions
 > Read this file completely before every session. Never skip it.
 
 ---
 
-## 🏗️ What is Lumora?
+## 🏗️ What is Hayesh?
 
-Lumora is a three-layer tutoring-first marketplace platform:
+Hayesh is a three-layer tutoring-first marketplace platform:
 
 **Layer 1 — Teacher Profiles** (core product)
 - Teachers fill structured profiles (NOT gigs)
@@ -23,7 +23,7 @@ Lumora is a three-layer tutoring-first marketplace platform:
 - Admin creates service listings backed by Claude API agents
 - No human seller — AI fulfills orders automatically at 100% margin
 - Admin configures: model, system prompt, input form, output type
-- Shown to users as "LumoraAI Studio" branded services
+- Shown to users as "HayeshAI Studio" branded services
 
 ---
 
@@ -61,7 +61,7 @@ Hosting:      Vercel (frontend) + Supabase Cloud (backend)
 ## 📁 Folder Structure
 
 ```
-lumora/
+hayesh/
 ├── CLAUDE.md                    ← This file — always read first
 ├── .env.local                   ← API keys — never commit
 ├── .env.example                 ← Safe template to commit
@@ -164,7 +164,7 @@ lumora/
 │   │   ├── SellerProfile.tsx
 │   │   └── OrderModal.tsx
 │   ├── ai-services/
-│   │   ├── AIServiceCard.tsx    ← "LumoraAI Studio" service card
+│   │   ├── AIServiceCard.tsx    ← "HayeshAI Studio" service card
 │   │   ├── AIOrderForm.tsx      ← Dynamic form from admin config
 │   │   └── AIDeliveryModal.tsx  ← Shows fulfilled AI output
 │   ├── parent/
@@ -227,12 +227,12 @@ lumora/
 │   └── useOrders.ts
 │
 └── styles/
-    └── globals.css              ← Tailwind base + Lumora tokens
+    └── globals.css              ← Tailwind base + Hayesh tokens
 ```
 
 ---
 
-## 🎨 Design System — Lumora Dark Cosmos
+## 🎨 Design System — Hayesh Dark Cosmos
 
 ```css
 /* Color Tokens */
@@ -305,7 +305,7 @@ Mono:     'JetBrains Mono' — code, data, prices
 - Token compression active (RTK + Caveman) — saves up to 95%
 - Never use Max reasoning effort — use High
 
-### Production (JARVIS inside Lumora for users):
+### Production (JARVIS inside Hayesh for users):
 ```
 Simple queries (80%)  → OpenRouter free (Llama 4 Maverick:free)
                          Cost: $0.00
@@ -343,7 +343,7 @@ const isLocalUser = user.country === 'PK'
 ```
 
 ### Bank transfer manual flow:
-1. User selects "Bank Transfer" → shown Lumora's bank details
+1. User selects "Bank Transfer" → shown Hayesh's bank details
 2. User transfers + uploads screenshot proof
 3. Admin sees pending confirmation in dashboard
 4. Admin clicks "Confirm" → subscription activates + JARVIS notifies teacher
@@ -399,7 +399,7 @@ const isLocalUser = user.country === 'PK'
 - Run `/compact` when session feels long — do this proactively
 - Start a NEW session for each major new feature
 - Reasoning effort: HIGH (never Max for routine tasks)
-- Opus for planning/reviewing, Sonnet for building
+- Fable 5 is the orchestrator: it plans/reviews only, Sonnet agents build — full policy in `.claude/rules/orchestrator.md`
 
 ---
 

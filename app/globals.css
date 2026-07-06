@@ -1,26 +1,35 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  /* Hayesh Dark Cosmos — Color Tokens */
+  --color-background: #05050f;
+  --color-surface: #0d0d1f;
+  --color-surface-elevated: #12122a;
+  --color-border: rgba(108, 99, 255, 0.2);
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-accent-primary: #6c63ff;
+  --color-accent-secondary: #00d4ff;
+  --color-accent-success: #00ff94;
+  --color-accent-warning: #ffb800;
+  --color-accent-danger: #ff4466;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-text-primary: #f0f0ff;
+  --color-text-muted: #7070a0;
+  --color-text-disabled: #3a3a5c;
+
+  /* Typography */
+  --font-display: var(--font-space-grotesk), "Space Grotesk", sans-serif;
+  --font-body: var(--font-inter), "Inter", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+
+  /* Glow Effects */
+  --shadow-glow-violet: 0 0 30px rgba(108, 99, 255, 0.4);
+  --shadow-glow-cyan: 0 0 30px rgba(0, 212, 255, 0.4);
+  --shadow-glow-green: 0 0 20px rgba(0, 255, 148, 0.4);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
 }

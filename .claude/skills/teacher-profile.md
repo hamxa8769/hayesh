@@ -32,4 +32,4 @@ Primary CTA on the profile page is always **"Book Free Demo"** — never "Contac
 - `DemoBookingModal.tsx` — the demo booking flow, opened from the "Book Free Demo" CTA
 
 ## Non-negotiables
-- Teachers are profiles, not gigs — never reuse marketplace gig components (`GigCard`, `GigPackages`, etc.) for teacher data, and never let a teacher's "Session Plans" tiers be confused with seller gig packages. See [Lumora three-layer architecture](../../CLAUDE.md) for why these stay separate.
+- Teachers are profiles, not gigs — never reuse marketplace gig components (`GigCard`, `GigPackages`, etc.) for teacher data, and never let a teacher's "Session Plans" tiers be confused with seller gig packages. See [Hayesh three-layer architecture](../../CLAUDE.md) for why these stay separate.

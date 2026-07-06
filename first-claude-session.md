@@ -1,6 +1,6 @@
 # First Claude Code Session — Paste This
 
-After running setup-lumora.bat and opening the lumora folder,
+After the initial setup is complete and you've opened the hayesh folder,
 start Claude Code with `claude` and paste this prompt:
 
 ---
@@ -10,15 +10,15 @@ start Claude Code with `claude` and paste this prompt:
 ```
 Read CLAUDE.md fully. 
 
-I am building Lumora — a three-layer tutoring marketplace.
+I am building Hayesh — a three-layer tutoring marketplace.
 This is Week 1, Day 1. We are setting up the project foundation.
 
 Please do the following in order:
 
-1. Set up globals.css with the Lumora Dark Cosmos design tokens
+1. Set up globals.css with the Hayesh Dark Cosmos design tokens
    (colors, typography variables using Space Grotesk + Inter + JetBrains Mono)
 
-2. Update tailwind.config.ts to include the Lumora color palette
+2. Update tailwind.config.ts to include the Hayesh color palette
    and add Google Fonts for Space Grotesk, Inter, JetBrains Mono
 
 3. Create lib/supabase/client.ts (browser client)
@@ -46,7 +46,7 @@ Please do the following in order:
    - Smooth scroll via Lenis
 
 9. Create app/(public)/page.tsx as a placeholder homepage
-   with a centered "Lumora" heading and the cosmos background
+   with a centered "Hayesh" heading and the cosmos background
 
 10. Run npm run build to check everything compiles
 
@@ -70,7 +70,7 @@ Build the complete auth system:
 Registration must ask for role selection: Teacher / Parent / Seller / Buyer
 Teacher registration requires paying a registration fee before profile goes live.
 Use shadcn/ui form components, React Hook Form, and Zod validation.
-All pages must use the Lumora Dark Cosmos design system.
+All pages must use the Hayesh Dark Cosmos design system.
 ```
 
 **Session 3:**
@@ -105,7 +105,7 @@ claude mcp add omniroute --type http --url http://localhost:20128/api/mcp/stream
 
 Start Claude Code in your project:
 ```
-cd lumora
+cd hayesh
 claude
 ```
 

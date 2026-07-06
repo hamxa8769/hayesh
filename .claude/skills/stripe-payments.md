@@ -1,6 +1,6 @@
 # Skill: Payment Rules (Stripe + Simpaisa)
 
-There are exactly **three** payment types on Lumora. Never mix their logic — each has its own commission rate, webhook handling, and payout path.
+There are exactly **three** payment types on Hayesh. Never mix their logic — each has its own commission rate, webhook handling, and payout path.
 
 ## Type 1 — Monthly Tuition (Teacher subscriptions)
 - Stripe Subscriptions (international) or Simpaisa recurring charge (Pakistan, `user.country === 'PK'`)
@@ -16,7 +16,7 @@ There are exactly **three** payment types on Lumora. Never mix their logic — e
 - Order status lifecycle: `pending` → `in_progress` → `delivered` → `complete`
 - Payout rail: Stripe Connect / Simpaisa IBFT, released after order marked complete
 
-## Type 3 — AI Service Purchase (Layer 3, LumoraAI Studio)
+## Type 3 — AI Service Purchase (Layer 3, HayeshAI Studio)
 - One-time Stripe `PaymentIntent` / Simpaisa one-time charge
 - Platform keeps **100%** — no human payout, ever
 - Fulfilled automatically by the admin-configured Claude API agent
@@ -24,7 +24,7 @@ There are exactly **three** payment types on Lumora. Never mix their logic — e
 
 ## Manual bank transfer flow (all types, Pakistan fallback)
 1. User selects "Bank Transfer" at checkout
-2. Lumora shows its bank account details
+2. Hayesh shows its bank account details
 3. User transfers and uploads a screenshot as proof
 4. Admin verifies the screenshot in the admin dashboard and clicks "Confirm Payment"
 5. Supabase marks the subscription/order active
