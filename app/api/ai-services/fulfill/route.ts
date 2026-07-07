@@ -1,90 +1,49 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const { service_id, input } = await req.json()
+  if (!service_id) return NextResponse.json({ error: "No service ID" }, { status: 400 })
 
-  const body = await request.json()
-  const { service_id, user_inputs } = body
+  // Fetch service config
+  const { data: service } = await supabase.from("ai_services").select("*").eq("id", service_id).single()
+  if (!service) return NextResponse.json({ error: "Service not found" }, { status: 404 })
 
-  if (!service_id) {
-    return NextResponse.json({ error: "service_id is required" }, { status: 400 })
-  }
-
-  const { data: service, error: serviceError } = await supabase
-    .from("ai_services")
-    .select("*")
-    .eq("id", service_id)
-    .single()
-
-  if (serviceError || !service) {
-    return NextResponse.json({ error: "Service not found" }, { status: 404 })
-  }
-
-  const { data: order, error: orderError } = await supabase
-    .from("ai_orders")
-    .insert({
-      service_id,
-      buyer_id: user.id,
-      user_inputs: user_inputs || {},
-      amount_pkr: service.price_pkr,
-      amount_usd: service.price_usd,
-      currency: "PKR",
-      status: "pending",
-    })
-    .select()
-    .single()
-
-  if (orderError) {
-    return NextResponse.json({ error: orderError.message }, { status: 500 })
-  }
-
-  const anthropicKey = process.env.ANTHROPIC_API_KEY
-  if (!anthropicKey) {
-    await supabase.from("ai_orders").update({ status: "failed" }).eq("id", order.id)
-    return NextResponse.json({ error: "AI service not configured" }, { status: 500 })
-  }
-
-  const inputSummary = Object.entries(user_inputs || {})
-    .map(([k, v]) => `${k}: ${v}`)
-    .join("\n")
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 500 })
 
   try {
+    const systemPrompt = service.system_prompt || "You are a helpful AI assistant."
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicKey,
+        "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: service.ai_model || "claude-sonnet-4-20250514",
+        model: service.model || "claude-sonnet-4-20250514",
         max_tokens: 4096,
-        system: service.system_prompt,
-        messages: [{ role: "user", content: inputSummary || "Please process this request." }],
+        system: systemPrompt,
+        messages: [{ role: "user", content: input || "Hello" }],
       }),
     })
 
     const data = await res.json()
     const output = data.content?.[0]?.text || "No output generated."
 
-    await supabase
-      .from("ai_orders")
-      .update({
-        status: "completed",
-        ai_output: output,
-        completed_at: new Date().toISOString(),
-      })
-      .eq("id", order.id)
+    // Record the order
+    await supabase.from("ai_orders").insert({
+      service_id, buyer_id: user.id, input, output,
+      amount_pkr: service.price_pkr || 0, status: "completed",
+    })
 
-    return NextResponse.json({ order_id: order.id, output, status: "completed" })
+    return NextResponse.json({ output })
   } catch {
-    await supabase.from("ai_orders").update({ status: "failed" }).eq("id", order.id)
-    return NextResponse.json({ error: "AI processing failed", order_id: order.id }, { status: 500 })
+    return NextResponse.json({ error: "AI fulfillment failed" }, { status: 500 })
   }
 }

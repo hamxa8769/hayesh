@@ -1,210 +1,210 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import Link from "next/link"
-import { GraduationCap, ShoppingBag, Cpu, Shield, Globe, Zap } from "lucide-react"
 import { motion } from "framer-motion"
+import { GraduationCap, ShoppingBag, Cpu, ArrowRight, Star, Users, Globe, Zap } from "lucide-react"
 import { JarvisButton } from "@/components/ui/jarvis-button"
-import { JarvisCard } from "@/components/ui/jarvis-card"
+import { Navbar } from "@/components/layout/Navbar"
 
-const features = [
-  {
-    icon: GraduationCap,
-    title: "Expert Teachers",
-    description: "Connect with vetted tutors for personalized learning. Monthly subscriptions with live video sessions.",
-    color: "violet" as const,
-  },
-  {
-    icon: ShoppingBag,
-    title: "Seller Marketplace",
-    description: "Hire talented freelancers for design, video, writing, and more. Basic, Standard, and Premium packages.",
-    color: "cyan" as const,
-  },
-  {
-    icon: Cpu,
-    title: "AI Services",
-    description: "Instant AI-powered delivery — content, code, documents. Powered by HayeshAI Studio.",
-    color: "green" as const,
-  },
+function HeroScene() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    let animId: number
+    let w = (canvas.width = window.innerWidth)
+    let h = (canvas.height = window.innerHeight)
+
+    const particles: { x: number; y: number; vx: number; vy: number; r: number }[] = []
+    for (let i = 0; i < 60; i++) {
+      particles.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        r: Math.random() * 2 + 0.5,
+      })
+    }
+
+    function draw() {
+      if (!ctx) return
+      ctx.clearRect(0, 0, w, h)
+      particles.forEach((p) => {
+        p.x += p.vx
+        p.y += p.vy
+        if (p.x < 0 || p.x > w) p.vx *= -1
+        if (p.y < 0 || p.y > h) p.vy *= -1
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx.fillStyle = "rgba(108, 99, 255, 0.4)"
+        ctx.fill()
+      })
+      // Draw connections
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x
+          const dy = particles[i].y - particles[j].y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist < 150) {
+            ctx.beginPath()
+            ctx.moveTo(particles[i].x, particles[i].y)
+            ctx.lineTo(particles[j].x, particles[j].y)
+            ctx.strokeStyle = `rgba(108, 99, 255, ${0.15 * (1 - dist / 150)})`
+            ctx.stroke()
+          }
+        }
+      }
+      animId = requestAnimationFrame(draw)
+    }
+
+    draw()
+    const onResize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight }
+    window.addEventListener("resize", onResize)
+    return () => { cancelAnimationFrame(animId); window.removeEventListener("resize", onResize) }
+  }, [])
+
+  return <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 -z-10" />
+}
+
+const fadeUp = { hidden: { opacity: 0, y: 30 }, visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.6 } }) }
+
+const layers = [
+  { icon: GraduationCap, title: "Teacher Profiles", desc: "Structured profiles with monthly subscriptions. Parents book free demos, then subscribe.", color: "text-accent-primary", glow: "glow-violet" },
+  { icon: ShoppingBag, title: "Seller Marketplace", desc: "Fiverr-style gigs with Basic/Standard/Premium packages. One-time payments.", color: "text-accent-success", glow: "glow-green" },
+  { icon: Cpu, title: "HayeshAI Studio", desc: "AI services powered by Claude. Admin-configured, 100% margin, instant delivery.", color: "text-accent-secondary", glow: "glow-cyan" },
 ]
 
 const stats = [
   { value: "500+", label: "Teachers" },
   { value: "10K+", label: "Students" },
-  { value: "2K+", label: "Freelancers" },
-  { value: "50+", label: "AI Tools" },
+  { value: "50+", label: "AI Services" },
+  { value: "99%", label: "Satisfaction" },
 ]
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="relative min-h-screen">
+    <div className="min-h-screen">
+      <HeroScene />
+      <Navbar />
+
       {/* Hero */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-6 pt-24 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="max-w-4xl"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-            className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent-primary/30 bg-accent-primary/10 px-4 py-1.5 text-sm text-accent-primary"
-          >
-            <Zap className="h-3.5 w-3.5" />
-            Learn. Hire. Create. — All in one platform.
+      <section className="relative flex min-h-screen items-center justify-center px-6 pt-20">
+        <div className="mx-auto max-w-4xl text-center">
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8 }}>
+            <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-accent-primary/30 bg-accent-primary/10 px-4 py-1.5 text-sm text-accent-primary">
+              <Zap className="h-4 w-4" /> JARVIS-Powered Platform
+            </span>
           </motion.div>
 
-          <h1 className="font-display text-5xl font-bold leading-tight tracking-tight sm:text-7xl lg:text-8xl">
-            <span className="bg-gradient-to-r from-accent-primary via-accent-secondary to-accent-success bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(108,99,255,0.3)]">
-              The Future of
+          <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.8 }}
+            className="mt-6 font-display text-5xl font-bold leading-tight sm:text-7xl">
+            <span className="bg-gradient-to-r from-accent-primary via-accent-secondary to-accent-success bg-clip-text text-transparent">
+              Learn.
+            </span>{" "}
+            <span className="text-text-primary">Teach.</span>{" "}
+            <span className="bg-gradient-to-r from-accent-secondary to-accent-primary bg-clip-text text-transparent">
+              Earn.
             </span>
-            <br />
-            <span className="text-text-primary">Learning & Hiring</span>
-          </h1>
+          </motion.h1>
 
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-text-muted sm:text-xl">
-            Hayesh connects parents with expert teachers, buyers with talented freelancers, 
-            and everyone with AI-powered services — one platform, three layers of value.
-          </p>
+          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.6 }}
+            className="mx-auto mt-6 max-w-2xl text-lg text-text-muted">
+            The three-layer marketplace where teachers build profiles, sellers offer services,
+            and AI delivers instant results — all powered by JARVIS.
+          </motion.p>
 
-          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6, duration: 0.6 }}
+            className="mt-10 flex flex-wrap items-center justify-center gap-4">
             <Link href="/auth/register">
-              <JarvisButton variant="primary" size="xl" glow>
-                Get Started Free
+              <JarvisButton variant="primary" size="lg">
+                Get Started <ArrowRight className="h-4 w-4" />
               </JarvisButton>
             </Link>
             <Link href="/teachers">
-              <JarvisButton variant="secondary" size="xl">
+              <JarvisButton variant="secondary" size="lg">
                 Browse Teachers
               </JarvisButton>
             </Link>
-          </div>
-        </motion.div>
-
-        {/* Stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.6 }}
-          className="mt-20 grid grid-cols-2 gap-6 sm:grid-cols-4"
-        >
-          {stats.map((stat) => (
-            <div key={stat.label} className="text-center">
-              <div className="font-mono text-3xl font-bold text-accent-primary">{stat.value}</div>
-              <div className="mt-1 text-sm text-text-muted">{stat.label}</div>
-            </div>
-          ))}
-        </motion.div>
+          </motion.div>
+        </div>
       </section>
 
-      {/* Features */}
-      <section className="relative px-6 py-24">
+      {/* Stats */}
+      <section className="border-y border-border bg-surface/50 py-12">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-8 px-6 sm:gap-16">
+          {stats.map((s, i) => (
+            <motion.div key={s.label} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
+              className="text-center">
+              <p className="font-mono text-3xl font-bold text-accent-primary">{s.value}</p>
+              <p className="mt-1 text-sm text-text-muted">{s.label}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* Three Layers */}
+      <section className="px-6 py-24">
         <div className="mx-auto max-w-6xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="font-display text-3xl font-bold text-text-primary sm:text-4xl">
-              Three Layers. One Platform.
-            </h2>
-            <p className="mt-4 text-text-muted max-w-2xl mx-auto">
-              Whether you&apos;re a parent seeking tutors, a freelancer finding clients, or looking for instant AI services — Hayesh has you covered.
-            </p>
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+            className="mb-16 text-center">
+            <h2 className="font-display text-3xl font-bold sm:text-4xl">Three Layers. One Platform.</h2>
+            <p className="mt-3 text-text-muted">Everything you need to teach, sell, or buy — in one place.</p>
           </motion.div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            {features.map((feature, i) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.15, duration: 0.5 }}
-              >
-                <JarvisCard glow={feature.color} className="p-6 h-full">
-                  <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-lg bg-accent-${feature.color === "violet" ? "primary" : feature.color === "cyan" ? "secondary" : "success"}/10`}>
-                    <feature.icon className={`h-6 w-6 text-accent-${feature.color === "violet" ? "primary" : feature.color === "cyan" ? "secondary" : "success"}`} />
-                  </div>
-                  <h3 className="font-display text-xl font-semibold text-text-primary">
-                    {feature.title}
-                  </h3>
-                  <p className="mt-2 text-sm text-text-muted">
-                    {feature.description}
-                  </p>
-                </JarvisCard>
+          <div className="grid gap-8 md:grid-cols-3">
+            {layers.map((layer, i) => (
+              <motion.div key={layer.title} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
+                className={`glass rounded-2xl p-8 transition-all duration-300 hover:${layer.glow}`}>
+                <div className={`mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-surface-elevated ${layer.color}`}>
+                  <layer.icon className="h-7 w-7" />
+                </div>
+                <h3 className="font-display text-xl font-bold">{layer.title}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-text-muted">{layer.desc}</p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Trust Bar */}
-      <section className="border-y border-border bg-surface/40 px-6 py-16">
-        <div className="mx-auto max-w-4xl">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
-            {[
-              { icon: Shield, title: "Secure Payments", desc: "Stripe + Simpaisa with buyer protection" },
-              { icon: Globe, title: "Multilingual", desc: "AI-powered real-time translation" },
-              { icon: Zap, title: "Instant AI Delivery", desc: "HayeshAI Studio fulfills orders in seconds" },
-            ].map((item) => (
-              <div key={item.title} className="flex items-start gap-3">
-                <item.icon className="mt-0.5 h-5 w-5 text-accent-primary shrink-0" />
-                <div>
-                  <p className="font-medium text-text-primary">{item.title}</p>
-                  <p className="text-sm text-text-muted">{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Trust bar */}
+      <section className="border-y border-border bg-surface/30 px-6 py-12">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-8 text-text-muted">
+          <span className="flex items-center gap-2"><Globe className="h-5 w-5" /> Multilingual Support</span>
+          <span className="flex items-center gap-2"><Star className="h-5 w-5 text-accent-warning" /> Verified Teachers</span>
+          <span className="flex items-center gap-2"><Users className="h-5 w-5" /> 10K+ Students</span>
+          <span className="flex items-center gap-2"><Zap className="h-5 w-5 text-accent-success" /> AI-Powered</span>
         </div>
       </section>
 
       {/* CTA */}
       <section className="px-6 py-24">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="mx-auto max-w-3xl text-center"
-        >
-          <h2 className="font-display text-3xl font-bold text-text-primary sm:text-4xl">
-            Ready to Get Started?
-          </h2>
-          <p className="mt-4 text-text-muted">
-            Join thousands of parents, teachers, and freelancers on Hayesh.
-          </p>
-          <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link href="/auth/register">
-              <JarvisButton variant="primary" size="xl" glow>
-                Create Free Account
-              </JarvisButton>
+        <motion.div initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+          className="glass mx-auto max-w-3xl rounded-3xl p-12 text-center glow-violet">
+          <h2 className="font-display text-3xl font-bold sm:text-4xl">Ready to Start?</h2>
+          <p className="mt-4 text-text-muted">Join thousands of teachers and students on Hayesh.</p>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <Link href="/auth/register?role=teacher">
+              <JarvisButton variant="primary" size="lg">Become a Teacher</JarvisButton>
             </Link>
-            <Link href="/auth/login">
-              <JarvisButton variant="ghost" size="xl">
-                Sign In
-              </JarvisButton>
+            <Link href="/auth/register?role=parent">
+              <JarvisButton variant="secondary" size="lg">Find a Teacher</JarvisButton>
             </Link>
           </div>
         </motion.div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border bg-surface/40 px-6 py-12">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <span className="font-display text-lg font-bold bg-gradient-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent">
-              HAYESH
-            </span>
-            <div className="flex gap-6 text-sm text-text-muted">
-              <Link href="/teachers" className="hover:text-text-primary transition-colors">Teachers</Link>
-              <Link href="/marketplace" className="hover:text-text-primary transition-colors">Marketplace</Link>
-              <Link href="/ai-services" className="hover:text-text-primary transition-colors">AI Services</Link>
-            </div>
-            <p className="text-xs text-text-disabled">© 2026 Hayesh. All rights reserved.</p>
-          </div>
+      <footer className="border-t border-border bg-surface/50 px-6 py-12">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
+          <span className="font-display text-lg font-bold bg-gradient-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent">
+            HAYESH
+          </span>
+          <p className="text-sm text-text-muted">&copy; 2026 Hayesh. All rights reserved.</p>
         </div>
       </footer>
     </div>

@@ -1,48 +1,36 @@
-import type { Metadata } from "next";
-import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
-import { SmoothScroll } from "@/components/layout/SmoothScroll";
-import { PageTransition } from "@/components/layout/PageTransition";
-import "./globals.css";
+import type { Metadata } from "next"
+import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google"
+import "./globals.css"
 
 const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
   subsets: ["latin"],
-  weight: ["600", "700"],
-});
+  variable: "--font-display",
+  display: "swap",
+})
 
 const inter = Inter({
-  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500"],
-});
+  variable: "--font-body",
+  display: "swap",
+})
 
 const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
-  weight: ["400"],
-});
+  variable: "--font-mono",
+  display: "swap",
+})
 
 export const metadata: Metadata = {
-  title: "Hayesh — Learn. Hire. Create.",
-  description:
-    "Hayesh is a tutoring-first marketplace connecting parents with vetted teachers, human sellers with buyers, and admin-deployed AI agent services — all in one platform.",
-};
+  title: "Hayesh — Tutoring Marketplace Platform",
+  description: "Connect with verified teachers, buy services, and leverage AI-powered tools.",
+}
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}
-    >
-      <body className="bg-background text-text-primary font-body antialiased">
-        <SmoothScroll>
-          <PageTransition>{children}</PageTransition>
-        </SmoothScroll>
+    <html lang="en" className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrainsMono.variable}`}>
+      <body className="min-h-screen bg-background font-body text-text-primary antialiased">
+        {children}
       </body>
     </html>
-  );
+  )
 }
