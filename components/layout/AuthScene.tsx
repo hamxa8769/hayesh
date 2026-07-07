@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useMemo, useEffect, useState } from "react"
+import { useRef, useMemo, useEffect, useState, Suspense } from "react"
 import { Canvas, useFrame } from "@react-three/fiber"
 import { Float, Stars } from "@react-three/drei"
 import * as THREE from "three"
@@ -10,10 +10,12 @@ function WireframeIcosahedron() {
 
   useFrame((state) => {
     if (!meshRef.current) return
-    const t = state.clock.getElapsedTime()
-    meshRef.current.rotation.x = Math.sin(t * 0.15) * 0.3
-    meshRef.current.rotation.y = t * 0.1
-    meshRef.current.rotation.z = Math.cos(t * 0.1) * 0.15
+    try {
+      const t = state.clock.getElapsedTime()
+      meshRef.current.rotation.x = Math.sin(t * 0.15) * 0.3
+      meshRef.current.rotation.y = t * 0.1
+      meshRef.current.rotation.z = Math.cos(t * 0.1) * 0.15
+    } catch { /* context lost */ }
   })
 
   const geometry = useMemo(() => new THREE.IcosahedronGeometry(1.8, 1), [])
@@ -32,9 +34,11 @@ function WireframeOctahedron() {
 
   useFrame((state) => {
     if (!meshRef.current) return
-    const t = state.clock.getElapsedTime()
-    meshRef.current.rotation.x = t * 0.08
-    meshRef.current.rotation.y = Math.cos(t * 0.12) * 0.4
+    try {
+      const t = state.clock.getElapsedTime()
+      meshRef.current.rotation.x = t * 0.08
+      meshRef.current.rotation.y = Math.cos(t * 0.12) * 0.4
+    } catch { /* context lost */ }
   })
 
   const geometry = useMemo(() => new THREE.OctahedronGeometry(0.8, 0), [])
@@ -53,8 +57,10 @@ function GridPlane() {
 
   useFrame((state) => {
     if (!gridRef.current) return
-    const t = state.clock.getElapsedTime()
-    gridRef.current.position.z = (t * 0.3) % 2
+    try {
+      const t = state.clock.getElapsedTime()
+      gridRef.current.position.z = (t * 0.3) % 2
+    } catch { /* context lost */ }
   })
 
   return (
@@ -66,50 +72,6 @@ function GridPlane() {
   )
 }
 
-function FloatingParticles() {
-  const count = 25
-  const mesh = useRef<THREE.InstancedMesh>(null!)
-
-  const particles = useMemo(() => {
-    const temp = []
-    for (let i = 0; i < count; i++) {
-      temp.push({
-        x: (Math.random() - 0.5) * 12,
-        y: (Math.random() - 0.5) * 8,
-        z: (Math.random() - 0.5) * 8,
-        scale: Math.random() * 0.02 + 0.005,
-        speed: Math.random() * 0.3 + 0.1,
-      })
-    }
-    return temp
-  }, [])
-
-  const dummy = useMemo(() => new THREE.Object3D(), [])
-
-  useFrame((state) => {
-    if (!mesh.current) return
-    const t = state.clock.getElapsedTime()
-    particles.forEach((p, i) => {
-      dummy.position.set(
-        p.x + Math.sin(t * p.speed + i) * 0.5,
-        p.y + Math.cos(t * p.speed * 0.7 + i) * 0.3,
-        p.z
-      )
-      dummy.scale.setScalar(p.scale)
-      dummy.updateMatrix()
-      mesh.current.setMatrixAt(i, dummy.matrix)
-    })
-    mesh.current.instanceMatrix.needsUpdate = true
-  })
-
-  return (
-    <instancedMesh ref={mesh} args={[undefined, undefined, count]}>
-      <sphereGeometry args={[1, 8, 8]} />
-      <meshBasicMaterial color="#6C63FF" transparent opacity={0.6} />
-    </instancedMesh>
-  )
-}
-
 function Scene() {
   return (
     <>
@@ -117,9 +79,39 @@ function Scene() {
       <WireframeIcosahedron />
       <WireframeOctahedron />
       <GridPlane />
-      <FloatingParticles />
-      <Stars radius={20} depth={50} count={500} factor={2} saturation={0} fade speed={0.5} />
+      <Stars radius={20} depth={50} count={300} factor={2} saturation={0} fade speed={0.5} />
     </>
+  )
+}
+
+function CanvasFallback() {
+  return (
+    <div className="pointer-events-none fixed inset-0 -z-10 bg-background" />
+  )
+}
+
+function SafeCanvas() {
+  const [failed, setFailed] = useState(false)
+
+  if (failed) return <CanvasFallback />
+
+  return (
+    <Canvas
+      camera={{ position: [0, 0, 6], fov: 50 }}
+      dpr={[1, 1.5]}
+      style={{ background: "transparent" }}
+      gl={{ antialias: false, alpha: true, powerPreference: "low-power" }}
+      onCreated={({ gl }) => {
+        gl.setClearColor(0x000000, 0)
+        // Listen for context loss — hide canvas gracefully
+        gl.domElement.addEventListener("webglcontextlost", (e) => {
+          e.preventDefault()
+          setFailed(true)
+        }, { once: true })
+      }}
+    >
+      <Scene />
+    </Canvas>
   )
 }
 
@@ -127,25 +119,18 @@ export function AuthScene() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
-    return () => setMounted(false)
+    // Delay mount to avoid competing with page load for GPU resources
+    const timer = setTimeout(() => setMounted(true), 100)
+    return () => clearTimeout(timer)
   }, [])
 
-  if (!mounted) return null
+  if (!mounted) return <CanvasFallback />
 
   return (
     <div className="pointer-events-none fixed inset-0 -z-10">
-      <Canvas
-        camera={{ position: [0, 0, 6], fov: 50 }}
-        dpr={[1, 1.5]}
-        style={{ background: "transparent" }}
-        gl={{ antialias: false, alpha: true }}
-        onCreated={({ gl }) => {
-          gl.setClearColor(0x000000, 0)
-        }}
-      >
-        <Scene />
-      </Canvas>
+      <Suspense fallback={<CanvasFallback />}>
+        <SafeCanvas />
+      </Suspense>
     </div>
   )
 }

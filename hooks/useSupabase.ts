@@ -28,24 +28,27 @@ export function useSupabase(): UseSupabaseReturn {
 
   const supabase = createClient()
 
-  const fetchProfile = useCallback(
-    async (userId: string) => {
-      const { data, error: fetchError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single()
-
-      if (fetchError) {
-        setError(fetchError.message)
+  const fetchProfile = useCallback(async (userId: string) => {
+    try {
+      const res = await fetch("/api/profile")
+      if (!res.ok) {
+        // API route failed — profile might not exist yet
+        setProfile(null)
         return null
       }
-
-      setProfile(data as Profile)
-      return data as Profile
-    },
-    [supabase]
-  )
+      const data = await res.json()
+      if (data.profile) {
+        setProfile(data.profile as Profile)
+        return data.profile as Profile
+      }
+      setProfile(null)
+      return null
+    } catch {
+      // Network error — don't block UI
+      setProfile(null)
+      return null
+    }
+  }, [])
 
   const refreshProfile = useCallback(async () => {
     if (user) {

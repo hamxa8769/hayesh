@@ -72,10 +72,13 @@ export function DashboardLayoutShell({ role, title, allowedRoles, children }: Da
 
   if (!user) return null
 
+  // Use layout prop role as fallback if profile fetch failed
+  const effectiveRole = profile?.role || role
+
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar
-        role={profile?.role || role}
+        role={effectiveRole}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         mobileOpen={mobileOpen}
