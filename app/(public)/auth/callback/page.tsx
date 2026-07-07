@@ -25,15 +25,48 @@ function CallbackContent() {
       const { createClient } = await import("@/lib/supabase/client")
       const supabase = createClient()
 
-      const { error: authError } = await supabase.auth.exchangeCodeForSession(
-        window.location.search
-      )
+      // Try code exchange first (for OAuth)
+      const urlParams = new URLSearchParams(window.location.search)
+      const code = urlParams.get("code")
 
-      if (authError) {
-        setError(authError.message)
-        return
+      if (code) {
+        const { error: authError } = await supabase.auth.exchangeCodeForSession(
+          window.location.search
+        )
+        if (authError) {
+          // Code exchange might fail if already signed in, try getting session
+          const { data: { session } } = await supabase.auth.getSession()
+          if (!session) {
+            setError(authError.message)
+            return
+          }
+        }
+      } else {
+        // No code — check if already signed in (email signup/auto-confirm)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          // Try hash-based auth (email confirmation links use #access_token)
+          const hashParams = new URLSearchParams(window.location.hash.substring(1))
+          const accessToken = hashParams.get("access_token")
+          const refreshToken = hashParams.get("refresh_token")
+
+          if (accessToken && refreshToken) {
+            const { error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            })
+            if (sessionError) {
+              setError(sessionError.message)
+              return
+            }
+          } else {
+            setError("No active session found. Please sign in.")
+            return
+          }
+        }
       }
 
+      // Get user
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -43,14 +76,16 @@ function CallbackContent() {
         return
       }
 
-      const { data: profile } = await supabase
+      // Get profile
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", user.id)
         .single()
 
-      if (!profile) {
-        setError("Profile not found. Please try signing up again.")
+      if (profileError || !profile) {
+        // Profile might not exist yet (trigger hasn't fired), try signing in
+        setError("Profile not found. Please try signing in.")
         return
       }
 
@@ -67,7 +102,7 @@ function CallbackContent() {
     }
 
     handleCallback()
-  }, [router, redirectTo])
+  }, [router, redirectTo, searchParams])
 
   return (
     <motion.div

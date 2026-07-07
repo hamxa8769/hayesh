@@ -51,7 +51,7 @@ function LoginContent() {
     setLoading(true)
     setError(null)
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     })
@@ -62,8 +62,25 @@ function LoginContent() {
       return
     }
 
-    router.push(redirectTo)
-    router.refresh()
+    if (authData.user) {
+      // Get role from profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", authData.user.id)
+        .single()
+
+      const roleRedirects: Record<string, string> = {
+        admin: "/admin",
+        teacher: "/dashboard",
+        parent: "/dashboard",
+        seller: "/dashboard",
+        buyer: "/dashboard",
+      }
+
+      const dest = profile ? (roleRedirects[profile.role] || redirectTo) : redirectTo
+      router.push(dest)
+    }
   }
 
   const signInWithGoogle = async () => {
@@ -102,6 +119,7 @@ function LoginContent() {
             label="Email"
             type="email"
             placeholder="you@example.com"
+            autoComplete="email"
             icon={<Mail className="h-4 w-4" />}
             error={errors.email?.message}
             {...register("email")}
@@ -111,6 +129,7 @@ function LoginContent() {
             label="Password"
             type="password"
             placeholder="••••••••"
+            autoComplete="current-password"
             icon={<Lock className="h-4 w-4" />}
             error={errors.password?.message}
             {...register("password")}

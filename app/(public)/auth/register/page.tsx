@@ -230,6 +230,7 @@ export default function RegisterPage() {
                 <JarvisInput
                   label="Full Name"
                   placeholder="John Doe"
+                  autoComplete="name"
                   icon={<User className="h-4 w-4" />}
                   error={step2Form.formState.errors.full_name?.message}
                   {...step2Form.register("full_name")}
@@ -239,6 +240,7 @@ export default function RegisterPage() {
                   label="Email"
                   type="email"
                   placeholder="you@example.com"
+                  autoComplete="email"
                   icon={<Mail className="h-4 w-4" />}
                   error={step2Form.formState.errors.email?.message}
                   {...step2Form.register("email")}
@@ -249,6 +251,7 @@ export default function RegisterPage() {
                     label="Password"
                     type="password"
                     placeholder="••••••••"
+                    autoComplete="new-password"
                     icon={<Lock className="h-4 w-4" />}
                     error={step2Form.formState.errors.password?.message}
                     {...step2Form.register("password")}
@@ -257,6 +260,7 @@ export default function RegisterPage() {
                     label="Confirm"
                     type="password"
                     placeholder="••••••••"
+                    autoComplete="new-password"
                     icon={<Lock className="h-4 w-4" />}
                     error={step2Form.formState.errors.confirmPassword?.message}
                     {...step2Form.register("confirmPassword")}
