@@ -97,8 +97,7 @@ function CallbackContent() {
         buyer: "/buyer/dashboard",
       }
 
-      router.push(roleRedirects[profile.role] || redirectTo)
-      router.refresh()
+      window.location.href = roleRedirects[profile.role] || redirectTo
     }
 
     handleCallback()

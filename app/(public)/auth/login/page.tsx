@@ -79,7 +79,8 @@ function LoginContent() {
       }
 
       const dest = profile ? (roleRedirects[profile.role] || redirectTo) : redirectTo
-      router.push(dest)
+      // Use hard redirect to ensure middleware reads fresh session cookies
+      window.location.href = dest
     }
   }
 

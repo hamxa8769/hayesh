@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/layout/DashboardSidebar"
 import { DashboardHeader } from "@/components/layout/DashboardHeader"
@@ -17,43 +17,65 @@ interface DashboardLayoutShellProps {
 }
 
 export function DashboardLayoutShell({ role, title, allowedRoles, children }: DashboardLayoutShellProps) {
-  const { user, profile, loading } = useSupabase()
+  const { user, profile, loading, refreshProfile } = useSupabase()
   const router = useRouter()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [retries, setRetries] = useState(0)
+
+  // Retry profile fetch if missing (middleware may be creating it)
+  const retryProfile = useCallback(async () => {
+    if (!loading && user && !profile && retries < 5) {
+      await refreshProfile()
+      setRetries((r) => r + 1)
+    }
+  }, [loading, user, profile, retries, refreshProfile])
+
+  useEffect(() => {
+    if (!loading && user && !profile && retries < 5) {
+      const timer = setTimeout(retryProfile, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [loading, user, profile, retries, retryProfile])
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth/login")
     }
+  }, [user, loading, router])
+
+  useEffect(() => {
     if (!loading && profile && !allowedRoles.includes(profile.role)) {
       router.push("/")
     }
-  }, [user, profile, loading, router, allowedRoles])
+  }, [profile, loading, router, allowedRoles])
 
-  if (loading) {
+  if (loading || (!profile && retries < 5)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex gap-1">
-          {[0, 1, 2].map((i) => (
-            <motion.div
-              key={i}
-              className="h-2 w-2 rounded-full bg-accent-primary"
-              animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-            />
-          ))}
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex gap-1">
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                className="h-2 w-2 rounded-full bg-accent-primary"
+                animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+              />
+            ))}
+          </div>
+          <p className="text-sm text-text-muted">Loading profile...</p>
         </div>
       </div>
     )
   }
 
-  if (!user || !profile) return null
+  if (!user) return null
 
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar
-        role={role}
+        role={profile?.role || role}
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         mobileOpen={mobileOpen}
