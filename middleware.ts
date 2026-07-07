@@ -7,6 +7,7 @@ const PROTECTED_ROUTES: ReadonlyArray<{ prefix: string; role: UserRole }> = [
   { prefix: '/teacher', role: 'teacher' },
   { prefix: '/parent', role: 'parent' },
   { prefix: '/seller', role: 'seller' },
+  { prefix: '/buyer', role: 'buyer' },
 ]
 
 const VALID_ROLES = ['admin', 'teacher', 'parent', 'seller', 'buyer'] as const
@@ -16,7 +17,9 @@ function isUserRole(value: unknown): value is UserRole {
 }
 
 function findProtectedRoute(pathname: string) {
-  return PROTECTED_ROUTES.find((route) => pathname.startsWith(route.prefix))
+  return PROTECTED_ROUTES.find((route) =>
+    pathname === route.prefix || pathname.startsWith(route.prefix + '/')
+  )
 }
 
 export async function middleware(request: NextRequest) {

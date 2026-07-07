@@ -121,7 +121,7 @@ export default function RegisterPage() {
     setLoading(true)
     setError(null)
 
-    const { error: authError } = await supabase.auth.signUp({
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
@@ -138,7 +138,17 @@ export default function RegisterPage() {
       return
     }
 
-    router.push("/auth/callback")
+    // Teachers go to onboarding wizard, others to callback
+    if (selectedRole === "teacher") {
+      // Auto sign-in after signup
+      await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      })
+      router.push("/teacher/onboarding")
+    } else {
+      router.push("/auth/callback")
+    }
   }
 
   return (

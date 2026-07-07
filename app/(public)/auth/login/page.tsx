@@ -72,10 +72,10 @@ function LoginContent() {
 
       const roleRedirects: Record<string, string> = {
         admin: "/admin",
-        teacher: "/dashboard",
-        parent: "/dashboard",
-        seller: "/dashboard",
-        buyer: "/dashboard",
+        teacher: "/teacher/dashboard",
+        parent: "/parent/dashboard",
+        seller: "/seller/dashboard",
+        buyer: "/buyer/dashboard",
       }
 
       const dest = profile ? (roleRedirects[profile.role] || redirectTo) : redirectTo
