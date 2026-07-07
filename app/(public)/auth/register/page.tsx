@@ -133,7 +133,16 @@ export default function RegisterPage() {
     })
 
     if (authError) {
-      setError(authError.message)
+      // Provide more helpful error messages
+      if (authError.message.includes("already registered")) {
+        setError("An account with this email already exists. Please sign in instead.")
+      } else if (authError.message.includes("valid email")) {
+        setError("Please enter a valid email address.")
+      } else if (authError.message.includes("password")) {
+        setError("Password must be at least 6 characters.")
+      } else {
+        setError(authError.message)
+      }
       setLoading(false)
       return
     }
@@ -141,13 +150,18 @@ export default function RegisterPage() {
     // Teachers go to onboarding wizard, others to callback
     if (selectedRole === "teacher") {
       // Auto sign-in after signup
-      await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       })
-      router.push("/teacher/onboarding")
+      if (signInError) {
+        // If auto-login fails (e.g., email confirmation required), redirect to login
+        router.push("/auth/login?redirect=/teacher/onboarding")
+        return
+      }
+      window.location.href = "/teacher/onboarding"
     } else {
-      router.push("/auth/callback")
+      window.location.href = "/auth/callback"
     }
   }
 
