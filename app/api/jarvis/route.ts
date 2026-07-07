@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { chatCompletion, classifyIntent } from "@/lib/ai/router"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -9,28 +10,28 @@ export async function POST(req: NextRequest) {
   const { query } = await req.json()
   if (!query) return NextResponse.json({ error: "No query" }, { status: 400 })
 
-  // Get user profile for context
-  const { data: profile } = await supabase.from("profiles").select("role, display_name").eq("id", user.id).single()
+  const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).single()
 
   try {
-    const apiKey = process.env.OPENROUTER_API_KEY
-    if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 500 })
+    // Classify intent to pick the right model tier
+    const complexity = await classifyIntent(query)
 
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "meta-llama/llama-4-maverick:free",
-        messages: [
-          { role: "system", content: `You are JARVIS, the AI assistant for Hayesh platform. User role: ${profile?.role || "unknown"}. Be helpful, concise, and role-aware. Current date: ${new Date().toISOString().split("T")[0]}.` },
-          { role: "user", content: query },
-        ],
-      }),
+    const systemPrompt = `You are JARVIS, the AI assistant for Hayesh — a tutoring-first marketplace platform.
+User role: ${profile?.role || "unknown"}${profile?.full_name ? ` (${profile.full_name})` : ""}.
+Current date: ${new Date().toISOString().split("T")[0]}.
+
+Be helpful, concise, and role-aware. Respond in natural language — never raw JSON.
+You can help with: finding teachers, managing sessions, viewing earnings, platform questions.`
+
+    const answer = await chatCompletion({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: query },
+      ],
+      maxTokens: complexity === "simple" ? 256 : complexity === "medium" ? 512 : 1024,
     })
 
-    const data = await res.json()
-    const answer = data.choices?.[0]?.message?.content || "I couldn't process that request."
-    return NextResponse.json({ answer })
+    return NextResponse.json({ answer, complexity })
   } catch {
     return NextResponse.json({ answer: "JARVIS is temporarily unavailable. Please try again." })
   }
