@@ -1,13 +1,38 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { motion } from "framer-motion"
 import { Calendar, Clock, Video } from "lucide-react"
-import { JarvisCard } from "@/components/ui/jarvis-card"
-import { Badge } from "@/components/ui/badge"
+import { Pill } from "@/components/ui/pill"
+import { Reveal } from "@/components/motion/Reveal"
+import { PanelGroup } from "@/components/dashboard/PanelGroup"
+import { cn } from "@/lib/utils/cn"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatDateTime } from "@/lib/utils/format"
-import type { Session } from "@/types/database"
+import type { Session, SessionStatus } from "@/types/database"
+
+const FILTERS = ["all", "scheduled", "in_progress", "completed"] as const
+
+const STATUS_STYLES: Record<string, { label: string; className: string }> = {
+  scheduled: { label: "Scheduled", className: "border-[#56B6FF]/30 bg-[#56B6FF]/10 text-[#56B6FF]" },
+  in_progress: { label: "In Progress", className: "border-[#56B6FF]/40 bg-[#56B6FF]/15 text-[#56B6FF]" },
+  completed: { label: "Completed", className: "border-transparent bg-accent-success/20 text-accent-success" },
+  cancelled: { label: "Cancelled", className: "border-transparent bg-accent-danger/20 text-accent-danger" },
+  no_show: { label: "No Show", className: "border-transparent bg-accent-warning/20 text-accent-warning" },
+}
+
+function StatusPill({ status }: { status: SessionStatus | null }) {
+  const style = STATUS_STYLES[status ?? "scheduled"] ?? STATUS_STYLES.scheduled
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 font-mono text-xs font-semibold uppercase tracking-wide",
+        style.className
+      )}
+    >
+      {style.label}
+    </span>
+  )
+}
 
 export default function SessionsPage() {
   const { user } = useSupabase()
@@ -29,62 +54,56 @@ export default function SessionsPage() {
     load()
   }, [user, filter])
 
-  const statusColors: Record<string, "default" | "success" | "warning" | "destructive" | "cyan"> = {
-    scheduled: "default", in_progress: "cyan", completed: "success", cancelled: "destructive", no_show: "warning",
-  }
-
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <h2 className="font-display text-2xl font-bold">Sessions</h2>
-      </motion.div>
+      <Reveal>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-text-primary">Sessions</h2>
+      </Reveal>
 
-      <div className="flex gap-2">
-        {["all", "scheduled", "in_progress", "completed"].map((s) => (
-          <button key={s} onClick={() => setFilter(s)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${filter === s ? "bg-accent-primary/20 text-accent-primary" : "text-text-muted hover:text-text-primary"}`}>
+      <div className="flex flex-wrap gap-2">
+        {FILTERS.map((s) => (
+          <Pill key={s} active={filter === s} onClick={() => setFilter(s)} className="capitalize">
             {s.replace("_", " ")}
-          </button>
+          </Pill>
         ))}
       </div>
 
       {loading ? (
         <p className="text-text-muted">Loading...</p>
       ) : sessions.length === 0 ? (
-        <JarvisCard glow="none" className="p-8 text-center">
-          <Calendar className="mx-auto h-12 w-12 text-text-disabled mb-3" />
+        <div className="rounded-lg border border-border bg-surface p-8 text-center">
+          <Calendar className="mx-auto mb-3 h-12 w-12 text-text-disabled" />
           <p className="text-text-muted">No sessions found</p>
-        </JarvisCard>
-      ) : (
-        <div className="space-y-3">
-          {sessions.map((s, i) => (
-            <motion.div key={s.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <JarvisCard glow="none" className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-accent-primary" />
-                    <div>
-                      <p className="font-medium text-text-primary">{s.subject || "Session"}</p>
-                      <p className="flex items-center gap-1 text-xs text-text-muted">
-                        <Clock className="h-3 w-3" /> {s.scheduled_at ? formatDateTime(s.scheduled_at) : "TBD"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={statusColors[s.status || "scheduled"]}>{s.status}</Badge>
-                    {s.status === "scheduled" && (
-                      <a href={s.livekit_room || "#"} target="_blank" rel="noopener noreferrer">
-                        <span className="flex items-center gap-1 rounded-lg bg-accent-primary/20 px-3 py-1.5 text-xs text-accent-primary hover:bg-accent-primary/30">
-                          <Video className="h-3.5 w-3.5" /> Join
-                        </span>
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </JarvisCard>
-            </motion.div>
-          ))}
         </div>
+      ) : (
+        <PanelGroup className="space-y-3">
+          {sessions.map((s) => (
+            <div
+              key={s.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface p-4 transition-colors hover:border-line-strong"
+            >
+              <div className="flex items-center gap-3">
+                <Calendar className="h-5 w-5 shrink-0 text-accent-primary" />
+                <div>
+                  <p className="font-medium text-text-primary">{s.subject || "Session"}</p>
+                  <p className="flex items-center gap-1 font-mono text-xs tabular-nums text-text-muted">
+                    <Clock className="h-3 w-3" /> {s.scheduled_at ? formatDateTime(s.scheduled_at) : "TBD"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusPill status={s.status} />
+                {s.status === "scheduled" && (
+                  <a href={s.livekit_room || "#"} target="_blank" rel="noopener noreferrer">
+                    <span className="flex items-center gap-1.5 rounded-lg border border-accent-primary/30 bg-accent-primary/10 px-3 py-1.5 text-xs font-medium text-accent-primary transition-colors hover:bg-accent-primary/20">
+                      <Video className="h-3.5 w-3.5" /> Join
+                    </span>
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </PanelGroup>
       )}
     </div>
   )

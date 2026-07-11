@@ -1,12 +1,36 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { motion } from "framer-motion"
 import { Wallet } from "lucide-react"
-import { JarvisCard } from "@/components/ui/jarvis-card"
+import { StatTile } from "@/components/dashboard/StatTile"
+import { PanelGroup } from "@/components/dashboard/PanelGroup"
+import { Reveal } from "@/components/motion/Reveal"
+import { cn } from "@/lib/utils/cn"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatPKR, formatDate } from "@/lib/utils/format"
-import type { Transaction } from "@/types/database"
+import type { PaymentStatus, Transaction } from "@/types/database"
+
+const STATUS_STYLES: Record<string, { label: string; className: string }> = {
+  completed: { label: "Completed", className: "border-transparent bg-accent-success/20 text-accent-success" },
+  pending: { label: "Pending", className: "border-transparent bg-accent-warning/20 text-accent-warning" },
+  processing: { label: "Processing", className: "border-[#56B6FF]/30 bg-[#56B6FF]/10 text-[#56B6FF]" },
+  failed: { label: "Failed", className: "border-transparent bg-accent-danger/20 text-accent-danger" },
+  refunded: { label: "Refunded", className: "border-line-strong bg-surface-2 text-text-muted" },
+}
+
+function StatusPill({ status }: { status: PaymentStatus | null }) {
+  const style = STATUS_STYLES[status ?? "pending"] ?? STATUS_STYLES.pending
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 font-mono text-xs font-semibold uppercase tracking-wide",
+        style.className
+      )}
+    >
+      {style.label}
+    </span>
+  )
+}
 
 export default function EarningsPage() {
   const { user } = useSupabase()
@@ -30,37 +54,44 @@ export default function EarningsPage() {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <h2 className="font-display text-2xl font-bold">Earnings</h2>
-      </motion.div>
+      <Reveal>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-text-primary">Earnings</h2>
+      </Reveal>
 
-      <JarvisCard glow="green" className="p-6">
-        <p className="text-sm text-text-muted">Available Balance</p>
-        <p className="mt-1 font-mono text-3xl font-bold text-accent-success">{formatPKR(balance)}</p>
-      </JarvisCard>
+      <StatTile label="Available Balance" value={formatPKR(balance)} accent className="max-w-sm" />
 
       {loading ? (
         <p className="text-text-muted">Loading...</p>
       ) : transactions.length === 0 ? (
-        <JarvisCard glow="none" className="p-8 text-center">
-          <Wallet className="mx-auto h-12 w-12 text-text-disabled mb-3" />
+        <div className="rounded-lg border border-border bg-surface p-8 text-center">
+          <Wallet className="mx-auto mb-3 h-12 w-12 text-text-disabled" />
           <p className="text-text-muted">No transactions yet</p>
-        </JarvisCard>
+        </div>
       ) : (
-        <JarvisCard glow="none" className="p-6">
-          <h3 className="mb-4 font-display text-lg font-bold">Transaction History</h3>
-          <div className="space-y-2">
-            {transactions.map((tx) => (
-              <div key={tx.id} className="flex items-center justify-between rounded-lg border border-border p-3">
-                <div>
-                  <p className="text-sm text-text-primary">{tx.type}</p>
-                  <p className="text-xs text-text-muted">{tx.created_at ? formatDate(tx.created_at) : ""}</p>
-                </div>
-                <span className="font-mono text-sm font-bold text-accent-success">{formatPKR(tx.net_amount || 0)}</span>
-              </div>
-            ))}
+        <PanelGroup title="Transaction History">
+          <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+            <table className="w-full min-w-[520px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="px-4 py-3 font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Type</th>
+                  <th className="px-4 py-3 font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Date</th>
+                  <th className="px-4 py-3 font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Status</th>
+                  <th className="px-4 py-3 text-right font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((tx) => (
+                  <tr key={tx.id} className="border-b border-border last:border-0 transition-colors hover:bg-surface-2">
+                    <td className="px-4 py-3 capitalize text-text-primary">{tx.type.replace("_", " ")}</td>
+                    <td className="px-4 py-3 font-mono text-xs tabular-nums text-text-muted">{tx.created_at ? formatDate(tx.created_at) : ""}</td>
+                    <td className="px-4 py-3"><StatusPill status={tx.status} /></td>
+                    <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums text-accent-success">{formatPKR(tx.net_amount || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </JarvisCard>
+        </PanelGroup>
       )}
     </div>
   )
