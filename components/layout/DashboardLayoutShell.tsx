@@ -1,13 +1,13 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/layout/DashboardSidebar"
 import { DashboardHeader } from "@/components/layout/DashboardHeader"
 import { useSupabase } from "@/hooks/useSupabase"
 import { cn } from "@/lib/utils/cn"
 import type { UserRole } from "@/types/database"
-import { motion } from "framer-motion"
+import { motion, useReducedMotion } from "framer-motion"
 
 interface Props {
   role: UserRole
@@ -19,6 +19,8 @@ interface Props {
 export function DashboardLayoutShell({ role, title, allowedRoles, children }: Props) {
   const { user, profile, loading, refreshProfile } = useSupabase()
   const router = useRouter()
+  const pathname = usePathname()
+  const prefersReducedMotion = useReducedMotion()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [retries, setRetries] = useState(0)
@@ -69,10 +71,18 @@ export function DashboardLayoutShell({ role, title, allowedRoles, children }: Pr
     <div className="min-h-screen bg-background">
       <DashboardSidebar role={effectiveRole} collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)}
         mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
-      <DashboardHeader title={title} onMenuOpen={() => setMobileOpen(true)} />
+      <DashboardHeader title={title} role={effectiveRole} collapsed={collapsed} onMenuOpen={() => setMobileOpen(true)} />
       <main className="pt-16">
-        <div className={cn("p-6 transition-all duration-200", collapsed ? "lg:pl-20" : "lg:pl-72")}>
-          {children}
+        <div className={cn("transition-[padding-left] duration-300 ease-out", collapsed ? "lg:pl-[92px]" : "lg:pl-[264px]")}>
+          <motion.div
+            key={pathname}
+            initial={prefersReducedMotion ? undefined : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="p-4 sm:p-6"
+          >
+            {children}
+          </motion.div>
         </div>
       </main>
     </div>
