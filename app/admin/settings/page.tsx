@@ -1,19 +1,20 @@
 "use client"
 
-import { motion } from "framer-motion"
 import { Settings } from "lucide-react"
-import { JarvisCard } from "@/components/ui/jarvis-card"
+import { Reveal } from "@/components/motion/Reveal"
 
 export default function SettingsPage() {
   return (
-    <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <h2 className="font-display text-2xl font-bold">Platform Settings</h2>
-      </motion.div>
-      <JarvisCard glow="none" className="p-8 text-center">
-        <Settings className="mx-auto h-12 w-12 text-text-disabled mb-3" />
-        <p className="text-text-muted">Platform settings coming soon</p>
-      </JarvisCard>
+    <div className="space-y-8">
+      <Reveal>
+        <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Admin / Settings</p>
+        <h1 className="mt-1 font-display text-2xl font-semibold text-text-primary sm:text-3xl">Platform Settings</h1>
+      </Reveal>
+
+      <div className="rounded-lg border border-border bg-surface p-12 text-center">
+        <Settings className="mx-auto h-10 w-10 text-text-disabled" />
+        <p className="mt-3 text-sm text-text-muted">Platform settings coming soon</p>
+      </div>
     </div>
   )
 }

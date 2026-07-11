@@ -1,13 +1,20 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { motion } from "framer-motion"
 import { GraduationCap } from "lucide-react"
-import { JarvisCard } from "@/components/ui/jarvis-card"
-import { JarvisButton } from "@/components/ui/jarvis-button"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { PanelGroup } from "@/components/dashboard/PanelGroup"
+import { Reveal } from "@/components/motion/Reveal"
 import { formatDate } from "@/lib/utils/format"
-import type { Teacher } from "@/types/database"
+import type { Teacher, ApprovalStatus } from "@/types/database"
+
+const STATUS_BADGE: Record<ApprovalStatus, "warning" | "success" | "destructive"> = {
+  pending: "warning",
+  approved: "success",
+  rejected: "destructive",
+  suspended: "destructive",
+}
 
 export default function AdminTeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -38,40 +45,58 @@ export default function AdminTeachersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <h2 className="font-display text-2xl font-bold">Teacher Management</h2>
-      </motion.div>
+    <div className="space-y-8">
+      <Reveal>
+        <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Admin / Teachers</p>
+        <h1 className="mt-1 font-display text-2xl font-semibold text-text-primary sm:text-3xl">Teacher Management</h1>
+      </Reveal>
 
-      {loading ? <p className="text-text-muted">Loading...</p> : teachers.length === 0 ? (
-        <JarvisCard glow="none" className="p-8 text-center">
-          <GraduationCard className="mx-auto h-12 w-12 text-text-disabled mb-3" />
-          <p className="text-text-muted">No teachers yet</p>
-        </JarvisCard>
+      {loading ? (
+        <p className="font-mono text-sm text-text-muted">Loading…</p>
+      ) : teachers.length === 0 ? (
+        <div className="rounded-lg border border-border bg-surface p-12 text-center">
+          <GraduationCap className="mx-auto h-10 w-10 text-text-disabled" />
+          <p className="mt-3 text-sm text-text-muted">No teachers yet</p>
+        </div>
       ) : (
-        <div className="space-y-3">
-          {teachers.map((t, i) => (
-            <motion.div key={t.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}>
-              <JarvisCard glow="none" className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-text-primary">{t.display_name || "Unnamed"}</p>
-                    <p className="text-xs text-text-muted">{t.created_at ? formatDate(t.created_at) : ""}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={t.status === "approved" ? "success" : t.status === "pending" ? "warning" : "destructive"}>{t.status}</Badge>
-                    {t.status === "pending" && <JarvisButton variant="primary" size="sm" onClick={() => approve(t.id)}>Approve</JarvisButton>}
-                    {t.status === "approved" && <JarvisButton variant="danger" size="sm" onClick={() => revoke(t.id)}>Revoke</JarvisButton>}
+        <PanelGroup>
+          <div className="hidden gap-4 border-b border-border px-4 pb-3 font-mono text-xs uppercase tracking-[0.12em] text-text-muted sm:grid sm:grid-cols-[1fr_140px_160px_120px]">
+            <span>Teacher</span>
+            <span>Joined</span>
+            <span>Status</span>
+            <span className="text-right">Action</span>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+            <div className="min-w-[640px]">
+              {teachers.map((t) => (
+                <div
+                  key={t.id}
+                  className="grid grid-cols-[1fr_140px_160px_120px] items-center gap-4 border-b border-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-elevated"
+                >
+                  <p className="truncate text-sm font-medium text-text-primary">{t.display_name || "Unnamed"}</p>
+                  <p className="font-mono text-xs tabular-nums text-text-muted">{t.created_at ? formatDate(t.created_at) : "—"}</p>
+                  <Badge variant={t.status ? STATUS_BADGE[t.status] : "secondary"}>{t.status || "unknown"}</Badge>
+                  <div className="flex justify-end">
+                    {t.status === "pending" && (
+                      <Button variant="aurora" size="sm" onClick={() => approve(t.id)}>Approve</Button>
+                    )}
+                    {t.status === "approved" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-accent-danger/40 text-accent-danger hover:border-accent-danger/60 hover:bg-accent-danger/10"
+                        onClick={() => revoke(t.id)}
+                      >
+                        Revoke
+                      </Button>
+                    )}
                   </div>
                 </div>
-              </JarvisCard>
-            </motion.div>
-          ))}
-        </div>
+              ))}
+            </div>
+          </div>
+        </PanelGroup>
       )}
     </div>
   )
 }
-
-// Fix: GraduationCap not GradCard
-const GraduationCard = GraduationCap

@@ -1,12 +1,18 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { motion } from "framer-motion"
 import { Bot } from "lucide-react"
-import { JarvisCard } from "@/components/ui/jarvis-card"
-import { JarvisButton } from "@/components/ui/jarvis-button"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import type { AIService } from "@/types/database"
+import { PanelGroup } from "@/components/dashboard/PanelGroup"
+import { Reveal } from "@/components/motion/Reveal"
+import type { AIService, AIServiceStatus } from "@/types/database"
+
+const STATUS_BADGE: Record<AIServiceStatus, "success" | "warning" | "secondary"> = {
+  active: "success",
+  paused: "warning",
+  draft: "secondary",
+}
 
 export default function AdminAIServicesPage() {
   const [services, setServices] = useState<AIService[]>([])
@@ -24,32 +30,33 @@ export default function AdminAIServicesPage() {
   }, [])
 
   return (
-    <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-        <h2 className="font-display text-2xl font-bold">AI Service Builder</h2>
-      </motion.div>
+    <div className="space-y-8">
+      <Reveal>
+        <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Admin / AI Services</p>
+        <h1 className="mt-1 font-display text-2xl font-semibold text-text-primary sm:text-3xl">HayeshAI Studio Builder</h1>
+      </Reveal>
 
-      {loading ? <p className="text-text-muted">Loading...</p> : services.length === 0 ? (
-        <JarvisCard glow="violet" className="p-8 text-center">
-          <Bot className="mx-auto h-12 w-12 text-text-disabled mb-3" />
-          <p className="text-text-muted mb-4">No AI services yet</p>
-          <JarvisButton variant="primary">Create AI Service</JarvisButton>
-        </JarvisCard>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {services.map((s, i) => (
-            <motion.div key={s.id} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <JarvisCard glow="violet" className="p-5">
-                <h3 className="font-display font-bold text-text-primary">{s.title}</h3>
-                <p className="mt-1 text-sm text-text-muted line-clamp-2">{s.description}</p>
-                <div className="mt-3 flex items-center justify-between">
-                  <Badge variant={s.status === "active" ? "success" : "default"}>{s.status || "draft"}</Badge>
-                  <span className="font-mono text-sm font-bold text-accent-primary">₨{s.price_pkr || 0}</span>
-                </div>
-              </JarvisCard>
-            </motion.div>
-          ))}
+      {loading ? (
+        <p className="font-mono text-sm text-text-muted">Loading…</p>
+      ) : services.length === 0 ? (
+        <div className="rounded-lg border border-border bg-surface p-12 text-center">
+          <Bot className="mx-auto h-10 w-10 text-text-disabled" />
+          <p className="mt-3 mb-4 text-sm text-text-muted">No AI services yet</p>
+          <Button variant="aurora">Create AI Service</Button>
         </div>
+      ) : (
+        <PanelGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {services.map((s) => (
+            <div key={s.id} className="rounded-lg border border-border bg-surface p-5 transition-colors hover:bg-surface-elevated hover:border-line-strong">
+              <h3 className="font-display font-semibold text-text-primary">{s.title}</h3>
+              <p className="mt-1 line-clamp-2 text-sm text-text-muted">{s.description}</p>
+              <div className="mt-4 flex items-center justify-between">
+                <Badge variant={s.status ? STATUS_BADGE[s.status] : "secondary"}>{s.status || "draft"}</Badge>
+                <span className="font-mono text-sm font-semibold tabular-nums text-accent-primary">₨{s.price_pkr || 0}</span>
+              </div>
+            </div>
+          ))}
+        </PanelGroup>
       )}
     </div>
   )
