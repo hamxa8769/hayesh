@@ -9,16 +9,18 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-accent-primary text-white shadow-[0_0_20px_rgba(108,99,255,0.4)] hover:shadow-[0_0_30px_rgba(108,99,255,0.6)] hover:bg-accent-primary/90",
+          "bg-accent-primary text-white shadow-[0_0_20px_rgba(39,196,160,0.4)] hover:shadow-[0_0_30px_rgba(39,196,160,0.6)] hover:bg-accent-primary/90",
         destructive:
-          "bg-accent-danger text-white shadow-[0_0_20px_rgba(255,68,102,0.4)] hover:shadow-[0_0_30px_rgba(255,68,102,0.6)]",
+          "bg-accent-danger text-white shadow-[0_0_20px_rgba(247,106,106,0.4)] hover:shadow-[0_0_30px_rgba(247,106,106,0.6)]",
         outline:
-          "border border-border bg-transparent text-text-primary hover:bg-surface-elevated hover:shadow-[0_0_15px_rgba(108,99,255,0.2)]",
+          "border border-border bg-transparent text-text-primary hover:bg-surface-elevated hover:shadow-[0_0_15px_rgba(39,196,160,0.2)]",
         secondary:
-          "bg-surface-elevated text-text-primary border border-border hover:bg-surface hover:shadow-[0_0_15px_rgba(0,212,255,0.2)]",
+          "bg-surface-elevated text-text-primary border border-border hover:bg-surface hover:shadow-[0_0_15px_rgba(245,184,78,0.2)]",
         ghost:
           "text-text-muted hover:text-text-primary hover:bg-surface-elevated",
         link: "text-accent-secondary underline-offset-4 hover:underline",
+        aurora:
+          "text-[#08090C] font-semibold [background:linear-gradient(110deg,#27C4A0,#5AD1B0_40%,#F5B84E)] hover:brightness-110 shadow-[0_0_24px_rgba(39,196,160,0.25)]",
       },
       size: {
         default: "h-10 px-4 py-2",

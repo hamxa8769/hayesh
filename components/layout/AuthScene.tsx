@@ -23,7 +23,7 @@ function WireframeIcosahedron() {
   return (
     <Float speed={1.5} rotationIntensity={0.3} floatIntensity={0.5}>
       <mesh ref={meshRef} geometry={geometry}>
-        <meshBasicMaterial wireframe color="#6C63FF" transparent opacity={0.25} />
+        <meshBasicMaterial wireframe color="#27C4A0" transparent opacity={0.25} />
       </mesh>
     </Float>
   )
@@ -46,7 +46,7 @@ function WireframeOctahedron() {
   return (
     <Float speed={2} rotationIntensity={0.5} floatIntensity={0.8}>
       <mesh ref={meshRef} geometry={geometry} position={[2.5, 0.5, -1]}>
-        <meshBasicMaterial wireframe color="#00D4FF" transparent opacity={0.2} />
+        <meshBasicMaterial wireframe color="#F5B84E" transparent opacity={0.2} />
       </mesh>
     </Float>
   )
@@ -66,7 +66,7 @@ function GridPlane() {
   return (
     <gridHelper
       ref={gridRef}
-      args={[30, 30, "#6C63FF", "#1a1a3e"]}
+      args={[30, 30, "#27C4A0", "#1a1a3e"]}
       position={[0, -2.5, 0]}
     />
   )

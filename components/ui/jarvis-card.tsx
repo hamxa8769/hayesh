@@ -11,9 +11,9 @@ interface JarvisCardProps {
 }
 
 const glowColors = {
-  violet: "shadow-[0_0_40px_rgba(108,99,255,0.15),inset_0_0_40px_rgba(108,99,255,0.05)]",
-  cyan: "shadow-[0_0_40px_rgba(0,212,255,0.15),inset_0_0_40px_rgba(0,212,255,0.05)]",
-  green: "shadow-[0_0_40px_rgba(0,255,148,0.15),inset_0_0_40px_rgba(0,255,148,0.05)]",
+  violet: "shadow-[0_0_40px_rgba(39,196,160,0.15),inset_0_0_40px_rgba(39,196,160,0.05)]",
+  cyan: "shadow-[0_0_40px_rgba(245,184,78,0.15),inset_0_0_40px_rgba(245,184,78,0.05)]",
+  green: "shadow-[0_0_40px_rgba(52,211,153,0.15),inset_0_0_40px_rgba(52,211,153,0.05)]",
   none: "",
 }
 

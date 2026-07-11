@@ -15,10 +15,10 @@ interface JarvisButtonProps extends Omit<HTMLMotionProps<"button">, "children"> 
 const JarvisButton = forwardRef<HTMLButtonElement, JarvisButtonProps>(
   ({ className, variant = "primary", size = "default", loading = false, glow = true, children, disabled, ...props }, ref) => {
     const variants = {
-      primary: "bg-accent-primary text-white hover:bg-accent-primary/90 hover:shadow-[0_0_30px_rgba(108,99,255,0.5)]",
-      secondary: "bg-surface-elevated text-text-primary border border-border hover:border-accent-secondary/50 hover:shadow-[0_0_20px_rgba(0,212,255,0.3)]",
+      primary: "bg-accent-primary text-white hover:bg-accent-primary/90 hover:shadow-[0_0_30px_rgba(39,196,160,0.5)]",
+      secondary: "bg-surface-elevated text-text-primary border border-border hover:border-accent-secondary/50 hover:shadow-[0_0_20px_rgba(245,184,78,0.3)]",
       ghost: "text-text-muted hover:text-text-primary hover:bg-surface-elevated",
-      danger: "bg-accent-danger/20 text-accent-danger border border-accent-danger/30 hover:bg-accent-danger/30 hover:shadow-[0_0_20px_rgba(255,68,102,0.3)]",
+      danger: "bg-accent-danger/20 text-accent-danger border border-accent-danger/30 hover:bg-accent-danger/30 hover:shadow-[0_0_20px_rgba(247,106,106,0.3)]",
     }
 
     const sizes = {

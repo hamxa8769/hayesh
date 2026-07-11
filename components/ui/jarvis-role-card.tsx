@@ -16,19 +16,19 @@ interface JarvisRoleCardProps {
 const glowMap = {
   violet: {
     border: "border-accent-primary/60",
-    shadow: "shadow-[0_0_30px_rgba(108,99,255,0.3)]",
+    shadow: "shadow-[0_0_30px_rgba(39,196,160,0.3)]",
     icon: "text-accent-primary",
     bg: "bg-accent-primary/10",
   },
   cyan: {
     border: "border-accent-secondary/60",
-    shadow: "shadow-[0_0_30px_rgba(0,212,255,0.3)]",
+    shadow: "shadow-[0_0_30px_rgba(245,184,78,0.3)]",
     icon: "text-accent-secondary",
     bg: "bg-accent-secondary/10",
   },
   green: {
     border: "border-accent-success/60",
-    shadow: "shadow-[0_0_30px_rgba(0,255,148,0.3)]",
+    shadow: "shadow-[0_0_30px_rgba(52,211,153,0.3)]",
     icon: "text-accent-success",
     bg: "bg-accent-success/10",
   },

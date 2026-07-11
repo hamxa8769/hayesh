@@ -20,7 +20,7 @@ function CosmosParticles() {
           density: { enable: true, width: 1920, height: 1080 },
         },
         color: {
-          value: ["#6C63FF", "#00D4FF", "#F0F0FF"],
+          value: ["#27C4A0", "#F5B84E", "#E8EAF0"],
         },
         opacity: {
           value: { min: 0.1, max: 0.6 },
