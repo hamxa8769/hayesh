@@ -2,7 +2,7 @@
 
 import { useRef, useMemo, useEffect, useState, Suspense } from "react"
 import { Canvas, useFrame } from "@react-three/fiber"
-import { Float, Stars } from "@react-three/drei"
+import { Float } from "@react-three/drei"
 import * as THREE from "three"
 
 function WireframeIcosahedron() {
@@ -79,7 +79,6 @@ function Scene() {
       <WireframeIcosahedron />
       <WireframeOctahedron />
       <GridPlane />
-      <Stars radius={20} depth={50} count={300} factor={2} saturation={0} fade speed={0.5} />
     </>
   )
 }
@@ -117,14 +116,17 @@ function SafeCanvas() {
 
 export function AuthScene() {
   const [mounted, setMounted] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(false)
 
   useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)")
+    setReducedMotion(query.matches)
     // Delay mount to avoid competing with page load for GPU resources
     const timer = setTimeout(() => setMounted(true), 100)
     return () => clearTimeout(timer)
   }, [])
 
-  if (!mounted) return <CanvasFallback />
+  if (!mounted || reducedMotion) return <CanvasFallback />
 
   return (
     <div className="pointer-events-none fixed inset-0 -z-10">
