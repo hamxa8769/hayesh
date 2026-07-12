@@ -81,11 +81,12 @@
   --color-gold: #B7841A;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* NOTE: Do NOT add `* { margin: 0; padding: 0 }` here. Tailwind v4's
+   preflight already resets these inside its base layer, and an unlayered
+   universal reset OVERRIDES every layered padding/margin/gap utility
+   (pt-*, px-*, mx-auto, gap-*) across the entire app — which silently
+   breaks all spacing and alignment. box-sizing is likewise handled by
+   preflight. */
 
 html {
   scroll-behavior: smooth;
