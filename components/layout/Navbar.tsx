@@ -5,6 +5,7 @@ import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
 import { Menu, X } from "lucide-react"
 import { JarvisButton } from "@/components/ui/jarvis-button"
+import { ThemeToggle } from "@/components/ui/ThemeToggle"
 
 const links = [
   { href: "/teachers", label: "Teachers" },
@@ -31,6 +32,7 @@ export function Navbar() {
         </div>
 
         <div className="hidden items-center gap-3 md:flex">
+          <ThemeToggle />
           <Link href="/auth/login">
             <JarvisButton variant="secondary" size="sm">Sign In</JarvisButton>
           </Link>
@@ -53,11 +55,12 @@ export function Navbar() {
                 <Link key={l.href} href={l.href} onClick={() => setMobileOpen(false)}
                   className="block py-2 text-sm text-text-muted hover:text-text-primary">{l.label}</Link>
               ))}
-              <div className="flex gap-3 pt-2">
-                <Link href="/auth/login" onClick={() => setMobileOpen(false)}>
+              <div className="flex items-center gap-3 pt-2">
+                <ThemeToggle />
+                <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="flex-1">
                   <JarvisButton variant="secondary" size="sm" className="w-full">Sign In</JarvisButton>
                 </Link>
-                <Link href="/auth/register" onClick={() => setMobileOpen(false)}>
+                <Link href="/auth/register" onClick={() => setMobileOpen(false)} className="flex-1">
                   <JarvisButton variant="primary" size="sm" className="w-full">Get Started</JarvisButton>
                 </Link>
               </div>
