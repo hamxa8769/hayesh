@@ -43,11 +43,22 @@ function CallbackContent() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setStatus("No user found."); return }
 
-      const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single()
-      if (!profile) { setStatus("Profile not found."); return }
-
+      setStatus("Loading your workspace...")
       const roleMap: Record<string, string> = { admin: "/admin", teacher: "/teacher/dashboard", parent: "/parent/dashboard", seller: "/seller/dashboard", buyer: "/buyer/dashboard" }
-      window.location.href = roleMap[profile.role] || redirectTo
+      // Resolve role via the server route with a short retry (a direct client
+      // select can 406 / miss the just-created profile row).
+      let role: string | undefined
+      for (let attempt = 0; attempt < 5 && !role; attempt++) {
+        try {
+          const res = await fetch("/api/profile", { cache: "no-store" })
+          if (res.ok) role = (await res.json())?.profile?.role
+        } catch {
+          // retry below
+        }
+        if (!role) await new Promise((r) => setTimeout(r, 400))
+      }
+      const explicitRedirect = redirectTo && redirectTo !== "/" ? redirectTo : undefined
+      window.location.href = (role && roleMap[role]) || explicitRedirect || "/"
     }
     handle()
   }, [redirectTo, router, searchParams])

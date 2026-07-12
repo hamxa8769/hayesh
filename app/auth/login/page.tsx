@@ -84,9 +84,22 @@ function LoginForm() {
     const { error: authError } = await supabase.auth.signInWithPassword({ email: data.email, password: data.password })
     if (authError) { setError(authError.message); setLoading(false); return }
 
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", (await supabase.auth.getUser()).data.user?.id || "").single()
     const roleMap: Record<string, string> = { admin: "/admin", teacher: "/teacher/dashboard", parent: "/parent/dashboard", seller: "/seller/dashboard", buyer: "/buyer/dashboard" }
-    window.location.href = profile ? (roleMap[profile.role] || redirectTo) : redirectTo
+    // Resolve the role via the server route (a direct client select right after
+    // sign-in can 406 / miss the freshly-set session, which used to drop every
+    // user on "/"). Retry briefly while the auth cookie propagates.
+    let role: string | undefined
+    for (let attempt = 0; attempt < 4 && !role; attempt++) {
+      try {
+        const res = await fetch("/api/profile", { cache: "no-store" })
+        if (res.ok) role = (await res.json())?.profile?.role
+      } catch {
+        // network hiccup — retry below
+      }
+      if (!role) await new Promise((r) => setTimeout(r, 350))
+    }
+    const explicitRedirect = redirectTo && redirectTo !== "/" ? redirectTo : undefined
+    window.location.href = (role && roleMap[role]) || explicitRedirect || "/"
   }
 
   const signInWithGoogle = async () => {

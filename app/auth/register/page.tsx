@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { Mail, Lock, User, Phone, MapPin, ArrowRight, ArrowLeft, GraduationCap, Users, ShoppingBag, Search, type LucideIcon } from "lucide-react"
+import { Mail, Lock, User, Phone, MapPin, ArrowRight, ArrowLeft, GraduationCap, Users, ShoppingBag, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Reveal } from "@/components/motion/Reveal"
@@ -30,7 +30,6 @@ const roles = [
   { value: "teacher" as const, icon: GraduationCap, title: "Teacher", desc: "Share knowledge & earn" },
   { value: "parent" as const, icon: Users, title: "Parent", desc: "Find the best tutors" },
   { value: "seller" as const, icon: ShoppingBag, title: "Seller", desc: "Offer your services" },
-  { value: "buyer" as const, icon: Search, title: "Buyer", desc: "Browse & hire talent" },
 ]
 
 interface AuthFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -133,7 +132,7 @@ export default function RegisterPage() {
     setLoading(true); setError(null)
     const { error: authError } = await supabase.auth.signUp({
       email: data.email, password: data.password,
-      options: { data: { role: selectedRole, full_name: data.full_name } },
+      options: { data: { role: selectedRole || "buyer", full_name: data.full_name } },
     })
     if (authError) { setError(authError.message); setLoading(false); return }
 
@@ -184,7 +183,8 @@ export default function RegisterPage() {
                   {step1Form.formState.errors.role && (
                     <p className="mb-4 text-center text-sm text-accent-danger">{step1Form.formState.errors.role.message}</p>
                   )}
-                  <Button type="button" variant="aurora" size="lg" onClick={() => selectedRole && setStep(2)} disabled={!selectedRole} className="w-full">
+                  <p className="mb-4 text-center text-sm text-text-muted">Just here to browse and hire? Skip this — you&apos;ll join as a buyer.</p>
+                  <Button type="button" variant="aurora" size="lg" onClick={() => setStep(2)} className="w-full">
                     Continue <ArrowRight className="h-4 w-4" />
                   </Button>
                 </motion.div>
@@ -197,7 +197,7 @@ export default function RegisterPage() {
                       <ArrowLeft className="h-4 w-4" /> Back
                     </button>
                     <span className="rounded-full border border-accent-primary/30 bg-accent-primary/10 px-3 py-1 font-mono text-[11px] uppercase tracking-wide text-accent-primary">
-                      {selectedRole}
+                      {selectedRole || "buyer"}
                     </span>
                   </div>
 
