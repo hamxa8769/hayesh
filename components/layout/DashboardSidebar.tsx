@@ -44,6 +44,7 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: Package, label: "My Gigs", href: "/seller/gigs" },
     { icon: ShoppingBag, label: "Orders", href: "/seller/orders" },
     { icon: Wallet, label: "Earnings", href: "/seller/earnings" },
+    { icon: UserCog, label: "Profile", href: "/seller/profile" },
   ],
   buyer: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/buyer/dashboard" },
