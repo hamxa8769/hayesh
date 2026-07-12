@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ScreenQuad } from '@react-three/drei'
@@ -217,9 +217,19 @@ function AuroraMesh() {
  */
 export function AuroraField() {
   const containerRef = useRef<HTMLDivElement>(null)
+  // Render the WebGL canvas client-only. During SSR (and the first client
+  // render) we output just the empty container so the server and client
+  // markup match — a react-three-fiber <Canvas> rendered on the server is a
+  // classic source of a production hydration mismatch (React #418).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   const handleContextLost = (event: Event) => {
     event.preventDefault()
+  }
+
+  if (!mounted) {
+    return <div className="pointer-events-none fixed inset-0 -z-10" aria-hidden="true" />
   }
 
   const handleContextRestored = () => {
