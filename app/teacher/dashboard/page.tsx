@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Calendar, Users, Wallet, UserCog, Clock, ArrowRight, Activity } from "lucide-react"
+import { Calendar, Users, Wallet, UserCog, Clock, ArrowRight, Activity, GraduationCap } from "lucide-react"
 import { StatTile } from "@/components/dashboard/StatTile"
 import { PanelGroup } from "@/components/dashboard/PanelGroup"
 import { Reveal } from "@/components/motion/Reveal"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils/cn"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatPKR, formatDateTime, formatDate } from "@/lib/utils/format"
@@ -45,6 +46,7 @@ export default function TeacherDashboard() {
   const [recentActivity, setRecentActivity] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [needsOnboarding, setNeedsOnboarding] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -53,62 +55,79 @@ export default function TeacherDashboard() {
     const load = async () => {
       setLoading(true)
       setError(null)
-      const { createClient } = await import("@/lib/supabase/client")
-      const supabase = createClient()
+      setNeedsOnboarding(false)
 
-      // `sessions.teacher_id` / `subscriptions.teacher_id` reference teachers(id),
-      // NOT auth.uid() — resolve the teacher row first before filtering on it.
-      const { data: teacherRow, error: teacherError } = await supabase
-        .from("teachers")
-        .select("*")
-        .eq("user_id", user.id)
-        .single()
+      try {
+        const { createClient } = await import("@/lib/supabase/client")
+        const supabase = createClient()
 
-      if (cancelled) return
+        // `sessions.teacher_id` / `subscriptions.teacher_id` reference teachers(id),
+        // NOT auth.uid() — resolve the teacher row first before filtering on it.
+        // `.maybeSingle()` (not `.single()`) because a signed-in teacher who
+        // hasn't finished onboarding legitimately has zero rows here — `.single()`
+        // makes PostgREST return a 406 for that case instead of null data.
+        const { data: teacherRow, error: teacherError } = await supabase
+          .from("teachers")
+          .select("*")
+          .eq("user_id", user.id)
+          .maybeSingle()
 
-      if (teacherError || !teacherRow) {
+        if (cancelled) return
+
+        if (teacherError) {
+          setError("We couldn't load your teacher profile yet.")
+          setLoading(false)
+          return
+        }
+
+        if (!teacherRow) {
+          setNeedsOnboarding(true)
+          setLoading(false)
+          return
+        }
+
+        const teacherData = teacherRow as Teacher
+        const week = currentWeekRange()
+
+        const [activeSubs, weekSessions, upcomingSessions, allTx, allPayouts] = await Promise.all([
+          supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("teacher_id", teacherData.id).eq("status", "active"),
+          supabase.from("sessions").select("scheduled_at").eq("teacher_id", teacherData.id).gte("scheduled_at", week.start.toISOString()).lt("scheduled_at", week.end.toISOString()),
+          supabase.from("sessions").select("*").eq("teacher_id", teacherData.id).eq("status", "scheduled").order("scheduled_at", { ascending: true }).limit(5),
+          supabase.from("transactions").select("*").eq("payee_id", user.id),
+          supabase.from("payouts").select("*").eq("recipient_id", user.id),
+        ])
+
+        if (cancelled) return
+
+        const transactions = (allTx.data || []) as Transaction[]
+        const payouts = (allPayouts.data || []) as Payout[]
+        const weekSessionRows = (weekSessions.data || []) as Pick<Session, "scheduled_at">[]
+
+        setTeacher(teacherData)
+        setStats({
+          activeStudents: activeSubs.count || 0,
+          sessionsThisWeek: weekSessionRows.length,
+          sessionsSpark: sessionsPerDaySpark(weekSessionRows, week),
+          balanceSpark: cumulativeEarningsSpark(transactions.filter((t) => t.status === "completed")),
+        })
+        setRating({
+          average: teacherData.average_rating ?? null,
+          totalReviews: teacherData.total_reviews ?? 0,
+        })
+        setBalance(computeTeacherBalance(transactions, payouts))
+        setUpcoming((upcomingSessions.data || []) as Session[])
+        const recentActivitySorted = [...transactions].sort((a, b) => {
+          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+          return bTime - aTime
+        })
+        setRecentActivity(recentActivitySorted.slice(0, 5))
+        setLoading(false)
+      } catch {
+        if (cancelled) return
         setError("We couldn't load your teacher profile yet.")
         setLoading(false)
-        return
       }
-
-      const teacherData = teacherRow as Teacher
-      const week = currentWeekRange()
-
-      const [activeSubs, weekSessions, upcomingSessions, allTx, allPayouts] = await Promise.all([
-        supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("teacher_id", teacherData.id).eq("status", "active"),
-        supabase.from("sessions").select("scheduled_at").eq("teacher_id", teacherData.id).gte("scheduled_at", week.start.toISOString()).lt("scheduled_at", week.end.toISOString()),
-        supabase.from("sessions").select("*").eq("teacher_id", teacherData.id).eq("status", "scheduled").order("scheduled_at", { ascending: true }).limit(5),
-        supabase.from("transactions").select("*").eq("payee_id", user.id),
-        supabase.from("payouts").select("*").eq("recipient_id", user.id),
-      ])
-
-      if (cancelled) return
-
-      const transactions = (allTx.data || []) as Transaction[]
-      const payouts = (allPayouts.data || []) as Payout[]
-      const weekSessionRows = (weekSessions.data || []) as Pick<Session, "scheduled_at">[]
-
-      setTeacher(teacherData)
-      setStats({
-        activeStudents: activeSubs.count || 0,
-        sessionsThisWeek: weekSessionRows.length,
-        sessionsSpark: sessionsPerDaySpark(weekSessionRows, week),
-        balanceSpark: cumulativeEarningsSpark(transactions.filter((t) => t.status === "completed")),
-      })
-      setRating({
-        average: teacherData.average_rating ?? null,
-        totalReviews: teacherData.total_reviews ?? 0,
-      })
-      setBalance(computeTeacherBalance(transactions, payouts))
-      setUpcoming((upcomingSessions.data || []) as Session[])
-      const recentActivitySorted = [...transactions].sort((a, b) => {
-        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
-        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
-        return bTime - aTime
-      })
-      setRecentActivity(recentActivitySorted.slice(0, 5))
-      setLoading(false)
     }
 
     load()
@@ -128,6 +147,31 @@ export default function TeacherDashboard() {
 
       {error ? (
         <div className="rounded-lg border border-accent-danger/30 bg-accent-danger/10 p-6 text-sm text-accent-danger">{error}</div>
+      ) : needsOnboarding ? (
+        <div className="relative overflow-hidden rounded-lg border border-border bg-surface p-8">
+          <span aria-hidden="true" className="aurora-bg absolute inset-x-0 top-0 h-[2px]" />
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-2">
+                <GraduationCap className="h-6 w-6 text-accent-primary" />
+              </div>
+              <div>
+                <h3 className="font-display text-lg font-semibold tracking-[-0.02em] text-text-primary">
+                  Complete your teacher profile
+                </h3>
+                <p className="mt-1 max-w-md text-sm text-text-muted">
+                  You haven&apos;t finished onboarding yet. Add your education, subjects, and pricing to start
+                  accepting students.
+                </p>
+              </div>
+            </div>
+            <Link href="/teacher/onboarding" className="shrink-0">
+              <Button variant="aurora">
+                Start Onboarding <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
       ) : (
         <>
           <PanelGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
