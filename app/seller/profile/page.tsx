@@ -79,27 +79,35 @@ export default function SellerProfilePage() {
     if (!user) return
     const load = async () => {
       setLoading(true)
-      const { createClient } = await import("@/lib/supabase/client")
-      const supabase = createClient()
-      const { data } = await supabase
-        .from("sellers")
-        .select("display_name, tagline, avatar_url, skills, languages, portfolio_urls, response_time_hrs")
-        .eq("user_id", user.id)
-        .single()
+      try {
+        const { createClient } = await import("@/lib/supabase/client")
+        const supabase = createClient()
+        // `.maybeSingle()` (not `.single()`) because a signed-in seller who
+        // hasn't saved a profile yet legitimately has zero rows here —
+        // `.single()` makes PostgREST return a 406 for that case instead of
+        // null data. The form below still works with all-default values, and
+        // saving upserts the row for a first-timer.
+        const { data } = await supabase
+          .from("sellers")
+          .select("display_name, tagline, avatar_url, skills, languages, portfolio_urls, response_time_hrs")
+          .eq("user_id", user.id)
+          .maybeSingle()
 
-      const row = data as SellerProfileRow | null
-      if (row) {
-        reset({
-          display_name: row.display_name || "",
-          tagline: row.tagline || "",
-          avatar_url: row.avatar_url || "",
-          skills: row.skills || [],
-          languages: row.languages || [],
-          portfolio_urls: row.portfolio_urls || [],
-          response_time_hrs: row.response_time_hrs || 24,
-        })
+        const row = data as SellerProfileRow | null
+        if (row) {
+          reset({
+            display_name: row.display_name || "",
+            tagline: row.tagline || "",
+            avatar_url: row.avatar_url || "",
+            skills: row.skills || [],
+            languages: row.languages || [],
+            portfolio_urls: row.portfolio_urls || [],
+            response_time_hrs: row.response_time_hrs || 24,
+          })
+        }
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     load()
   }, [user, reset])
@@ -109,28 +117,41 @@ export default function SellerProfilePage() {
     setSaving(true)
     setError(null)
 
-    const { createClient } = await import("@/lib/supabase/client")
-    const supabase = createClient()
-    const { error: updateError } = await supabase
-      .from("sellers")
-      .update({
-        display_name: values.display_name,
-        tagline: values.tagline || null,
-        avatar_url: values.avatar_url || null,
-        skills: values.skills,
-        languages: values.languages,
-        portfolio_urls: values.portfolio_urls,
-        response_time_hrs: values.response_time_hrs,
-      })
-      .eq("user_id", user.id)
+    try {
+      const { createClient } = await import("@/lib/supabase/client")
+      const supabase = createClient()
+      // `.upsert()` (not `.update()`) so a seller with no `sellers` row yet
+      // (e.g. profile lookup above found nothing) still gets one created on
+      // first save — an `.update()` on a non-existent row is a silent no-op.
+      // Column set matches migration 005's insert grant exactly: never
+      // touch status/level/registration_fee/stats from the client.
+      const { error: upsertError } = await supabase
+        .from("sellers")
+        .upsert(
+          {
+            user_id: user.id,
+            display_name: values.display_name,
+            tagline: values.tagline || null,
+            avatar_url: values.avatar_url || null,
+            skills: values.skills,
+            languages: values.languages,
+            portfolio_urls: values.portfolio_urls,
+            response_time_hrs: values.response_time_hrs,
+          },
+          { onConflict: "user_id" }
+        )
 
-    setSaving(false)
-    if (updateError) {
-      setError(updateError.message)
-      return
+      if (upsertError) {
+        setError(upsertError.message)
+        return
+      }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch {
+      setError("Something went wrong saving your profile. Please try again.")
+    } finally {
+      setSaving(false)
     }
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
   }
 
   const values = watch()

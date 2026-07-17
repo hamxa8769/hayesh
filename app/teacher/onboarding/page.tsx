@@ -85,11 +85,18 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const load = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push("/auth/login"); return }
-      const { data: p } = await supabase.from("profiles").select("full_name").eq("id", user.id).single()
-      if (p?.full_name) form.setValue("display_name", p.full_name)
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { router.push("/auth/login"); return }
+        // `.maybeSingle()` (not `.single()`) — `.single()` 406s when the
+        // lookup ever comes back empty, which would otherwise throw here.
+        const { data: p } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle()
+        form.setValue("display_name", p?.full_name || "")
+      } catch {
+        // Non-fatal — the display name field just stays empty and the
+        // teacher can type it in manually.
+      }
     }
     load()
   }, [router, form])
