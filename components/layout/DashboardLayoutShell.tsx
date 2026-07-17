@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { DashboardSidebar } from "@/components/layout/DashboardSidebar"
 import { DashboardHeader } from "@/components/layout/DashboardHeader"
+import { JarvisWidget } from "@/components/jarvis/JarvisWidget"
 import { useSupabase } from "@/hooks/useSupabase"
 import { cn } from "@/lib/utils/cn"
 import type { UserRole } from "@/types/database"
@@ -85,6 +86,7 @@ export function DashboardLayoutShell({ role, title, allowedRoles, children }: Pr
           </motion.div>
         </div>
       </main>
+      <JarvisWidget />
     </div>
   )
 }
