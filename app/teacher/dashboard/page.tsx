@@ -10,12 +10,17 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils/cn"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatPKR, formatDateTime, formatDate } from "@/lib/utils/format"
-import type { Session, Transaction } from "@/types/database"
+import { EscrowBalanceCard } from "@/components/teacher/EscrowBalanceCard"
+import { TeacherProfileCompletionCard } from "@/components/teacher/TeacherProfileCompletionCard"
+import { computeTeacherBalance, type TeacherBalance } from "@/components/teacher/teacher-balance"
+import { currentWeekRange, sessionsPerDaySpark, cumulativeEarningsSpark } from "@/components/teacher/teacher-metrics"
+import type { Session, Teacher, Transaction, Payout } from "@/types/database"
 
 interface DashboardStats {
-  sessions: number
-  students: number
-  balance: number
+  activeStudents: number
+  sessionsThisWeek: number
+  sessionsSpark: number[]
+  balanceSpark: number[]
 }
 
 interface RatingSummary {
@@ -32,125 +37,187 @@ const QUICK_ACTIONS = [
 
 export default function TeacherDashboard() {
   const { user } = useSupabase()
-  const [stats, setStats] = useState<DashboardStats>({ sessions: 0, students: 0, balance: 0 })
+  const [teacher, setTeacher] = useState<Teacher | null>(null)
+  const [stats, setStats] = useState<DashboardStats>({ activeStudents: 0, sessionsThisWeek: 0, sessionsSpark: [], balanceSpark: [] })
   const [rating, setRating] = useState<RatingSummary>({ average: null, totalReviews: 0 })
+  const [balance, setBalance] = useState<TeacherBalance | null>(null)
   const [upcoming, setUpcoming] = useState<Session[]>([])
   const [recentActivity, setRecentActivity] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
+    let cancelled = false
+
     const load = async () => {
+      setLoading(true)
+      setError(null)
       const { createClient } = await import("@/lib/supabase/client")
       const supabase = createClient()
-      const [sessions, students, tx, teacher, upcomingSessions, activity] = await Promise.all([
-        supabase.from("sessions").select("id", { count: "exact", head: true }).eq("teacher_id", user.id),
-        supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("teacher_id", user.id).eq("status", "active"),
-        supabase.from("transactions").select("net_amount").eq("payee_id", user.id).eq("status", "completed"),
-        supabase.from("teachers").select("average_rating, total_reviews").eq("user_id", user.id).single(),
-        supabase.from("sessions").select("*").eq("teacher_id", user.id).eq("status", "scheduled").order("scheduled_at", { ascending: true }).limit(5),
-        supabase.from("transactions").select("*").eq("payee_id", user.id).order("created_at", { ascending: false }).limit(5),
+
+      // `sessions.teacher_id` / `subscriptions.teacher_id` reference teachers(id),
+      // NOT auth.uid() — resolve the teacher row first before filtering on it.
+      const { data: teacherRow, error: teacherError } = await supabase
+        .from("teachers")
+        .select("*")
+        .eq("user_id", user.id)
+        .single()
+
+      if (cancelled) return
+
+      if (teacherError || !teacherRow) {
+        setError("We couldn't load your teacher profile yet.")
+        setLoading(false)
+        return
+      }
+
+      const teacherData = teacherRow as Teacher
+      const week = currentWeekRange()
+
+      const [activeSubs, weekSessions, upcomingSessions, allTx, allPayouts] = await Promise.all([
+        supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("teacher_id", teacherData.id).eq("status", "active"),
+        supabase.from("sessions").select("scheduled_at").eq("teacher_id", teacherData.id).gte("scheduled_at", week.start.toISOString()).lt("scheduled_at", week.end.toISOString()),
+        supabase.from("sessions").select("*").eq("teacher_id", teacherData.id).eq("status", "scheduled").order("scheduled_at", { ascending: true }).limit(5),
+        supabase.from("transactions").select("*").eq("payee_id", user.id),
+        supabase.from("payouts").select("*").eq("recipient_id", user.id),
       ])
+
+      if (cancelled) return
+
+      const transactions = (allTx.data || []) as Transaction[]
+      const payouts = (allPayouts.data || []) as Payout[]
+      const weekSessionRows = (weekSessions.data || []) as Pick<Session, "scheduled_at">[]
+
+      setTeacher(teacherData)
       setStats({
-        sessions: sessions.count || 0,
-        students: students.count || 0,
-        balance: (tx.data || []).reduce((s, t) => s + (t.net_amount || 0), 0),
+        activeStudents: activeSubs.count || 0,
+        sessionsThisWeek: weekSessionRows.length,
+        sessionsSpark: sessionsPerDaySpark(weekSessionRows, week),
+        balanceSpark: cumulativeEarningsSpark(transactions.filter((t) => t.status === "completed")),
       })
       setRating({
-        average: teacher.data?.average_rating ?? null,
-        totalReviews: teacher.data?.total_reviews ?? 0,
+        average: teacherData.average_rating ?? null,
+        totalReviews: teacherData.total_reviews ?? 0,
       })
+      setBalance(computeTeacherBalance(transactions, payouts))
       setUpcoming((upcomingSessions.data || []) as Session[])
-      setRecentActivity((activity.data || []) as Transaction[])
+      const recentActivitySorted = [...transactions].sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+        return bTime - aTime
+      })
+      setRecentActivity(recentActivitySorted.slice(0, 5))
       setLoading(false)
     }
+
     load()
+    return () => {
+      cancelled = true
+    }
   }, [user])
 
   return (
     <div className="space-y-8">
       <Reveal>
-        <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-text-primary">Welcome back!</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-text-primary">
+          Welcome back{teacher?.display_name ? `, ${teacher.display_name}` : ""}!
+        </h2>
         <p className="mt-1 text-text-muted">Here&apos;s your teaching overview.</p>
       </Reveal>
 
-      <PanelGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Sessions" value={stats.sessions} />
-        <StatTile label="Active Students" value={stats.students} />
-        <StatTile label="Balance" value={formatPKR(stats.balance)} accent />
-        <StatTile
-          label="Rating"
-          value={rating.average != null ? rating.average.toFixed(1) : "—"}
-          delta={rating.totalReviews > 0 ? { value: `${rating.totalReviews} reviews`, direction: "flat" } : undefined}
-        />
-      </PanelGroup>
+      {error ? (
+        <div className="rounded-lg border border-accent-danger/30 bg-accent-danger/10 p-6 text-sm text-accent-danger">{error}</div>
+      ) : (
+        <>
+          <PanelGroup className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile label="Active Students" value={stats.activeStudents} />
+            <StatTile label="Sessions This Week" value={stats.sessionsThisWeek} spark={stats.sessionsSpark} />
+            <StatTile
+              label="Available Balance"
+              value={loading ? "…" : formatPKR(balance?.available ?? 0)}
+              spark={stats.balanceSpark}
+              accent
+            />
+            <StatTile
+              label="Rating"
+              value={rating.average != null ? rating.average.toFixed(1) : "—"}
+              delta={rating.totalReviews > 0 ? { value: `${rating.totalReviews} reviews`, direction: "flat" } : undefined}
+            />
+          </PanelGroup>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <PanelGroup title="Upcoming Sessions">
-          <div className="rounded-lg border border-border bg-surface p-1">
-            <div className="flex items-center justify-between px-4 pt-3 pb-2">
-              <p className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                <Calendar className="h-4 w-4 text-accent-primary" /> Next up
-              </p>
-              <Link href="/teacher/sessions" className="flex items-center gap-1 text-xs font-mono text-text-muted transition-colors hover:text-accent-primary">
-                View all <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-            {loading ? (
-              <p className="px-4 pb-4 text-sm text-text-muted">Loading...</p>
-            ) : upcoming.length === 0 ? (
-              <p className="px-4 pb-4 text-sm text-text-muted">No upcoming sessions scheduled.</p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {upcoming.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-text-primary">{s.subject || "Session"}</p>
-                      <p className="mt-0.5 flex items-center gap-1 font-mono text-xs tabular-nums text-text-muted">
-                        <Clock className="h-3 w-3" /> {s.scheduled_at ? formatDateTime(s.scheduled_at) : "TBD"}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="shrink-0">Scheduled</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </PanelGroup>
+          {balance && <EscrowBalanceCard balance={balance} />}
 
-        <PanelGroup title="Recent Activity">
-          <div className="rounded-lg border border-border bg-surface p-1">
-            <div className="flex items-center gap-2 px-4 pt-3 pb-2">
-              <Activity className="h-4 w-4 text-accent-primary" />
-              <p className="text-sm font-medium text-text-primary">Latest transactions</p>
-            </div>
-            {loading ? (
-              <p className="px-4 pb-4 text-sm text-text-muted">Loading...</p>
-            ) : recentActivity.length === 0 ? (
-              <p className="px-4 pb-4 text-sm text-text-muted">No activity yet.</p>
-            ) : (
-              <ul className="divide-y divide-border">
-                {recentActivity.map((t) => (
-                  <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm capitalize text-text-primary">{t.type.replace("_", " ")}</p>
-                      <p className="mt-0.5 font-mono text-xs text-text-muted">{t.created_at ? formatDate(t.created_at) : ""}</p>
-                    </div>
-                    <span
-                      className={cn(
-                        "shrink-0 font-mono text-sm font-semibold tabular-nums",
-                        t.status === "completed" ? "text-accent-success" : "text-text-muted"
-                      )}
-                    >
-                      {formatPKR(t.net_amount || 0)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <PanelGroup title="Upcoming Sessions">
+              <div className="rounded-lg border border-border bg-surface p-1">
+                <div className="flex items-center justify-between px-4 pt-3 pb-2">
+                  <p className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                    <Calendar className="h-4 w-4 text-accent-primary" /> Next up
+                  </p>
+                  <Link href="/teacher/sessions" className="flex items-center gap-1 text-xs font-mono text-text-muted transition-colors hover:text-accent-primary">
+                    View all <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
+                {loading ? (
+                  <p className="px-4 pb-4 text-sm text-text-muted">Loading...</p>
+                ) : upcoming.length === 0 ? (
+                  <p className="px-4 pb-4 text-sm text-text-muted">No upcoming sessions scheduled.</p>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {upcoming.map((s) => (
+                      <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-text-primary">{s.subject || "Session"}</p>
+                          <p className="mt-0.5 flex items-center gap-1 font-mono text-xs tabular-nums text-text-muted">
+                            <Clock className="h-3 w-3" /> {s.scheduled_at ? formatDateTime(s.scheduled_at) : "TBD"}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="shrink-0">Scheduled</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </PanelGroup>
+
+            <PanelGroup title="Recent Activity">
+              <div className="rounded-lg border border-border bg-surface p-1">
+                <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+                  <Activity className="h-4 w-4 text-accent-primary" />
+                  <p className="text-sm font-medium text-text-primary">Latest transactions</p>
+                </div>
+                {loading ? (
+                  <p className="px-4 pb-4 text-sm text-text-muted">Loading...</p>
+                ) : recentActivity.length === 0 ? (
+                  <p className="px-4 pb-4 text-sm text-text-muted">No activity yet.</p>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {recentActivity.map((t) => (
+                      <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm capitalize text-text-primary">{t.type.replace("_", " ")}</p>
+                          <p className="mt-0.5 font-mono text-xs text-text-muted">{t.created_at ? formatDate(t.created_at) : ""}</p>
+                        </div>
+                        <span
+                          className={cn(
+                            "shrink-0 font-mono text-sm font-semibold tabular-nums",
+                            t.status === "completed" ? "text-accent-success" : "text-text-muted"
+                          )}
+                        >
+                          {formatPKR(t.net_amount || 0)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </PanelGroup>
           </div>
-        </PanelGroup>
-      </div>
+
+          {teacher && <TeacherProfileCompletionCard teacher={teacher} />}
+        </>
+      )}
 
       <div className="rounded-lg border border-border bg-surface p-6">
         <h3 className="mb-4 font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Quick Actions</h3>

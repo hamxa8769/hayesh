@@ -1,98 +1,114 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Wallet } from "lucide-react"
 import { StatTile } from "@/components/dashboard/StatTile"
 import { PanelGroup } from "@/components/dashboard/PanelGroup"
 import { Reveal } from "@/components/motion/Reveal"
-import { cn } from "@/lib/utils/cn"
+import { Button } from "@/components/ui/button"
 import { useSupabase } from "@/hooks/useSupabase"
-import { formatPKR, formatDate } from "@/lib/utils/format"
-import type { PaymentStatus, Transaction } from "@/types/database"
-
-const STATUS_STYLES: Record<string, { label: string; className: string }> = {
-  completed: { label: "Completed", className: "border-transparent bg-accent-success/20 text-accent-success" },
-  pending: { label: "Pending", className: "border-transparent bg-accent-warning/20 text-accent-warning" },
-  processing: { label: "Processing", className: "border-[#56B6FF]/30 bg-[#56B6FF]/10 text-[#56B6FF]" },
-  failed: { label: "Failed", className: "border-transparent bg-accent-danger/20 text-accent-danger" },
-  refunded: { label: "Refunded", className: "border-line-strong bg-surface-2 text-text-muted" },
-}
-
-function StatusPill({ status }: { status: PaymentStatus | null }) {
-  const style = STATUS_STYLES[status ?? "pending"] ?? STATUS_STYLES.pending
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 font-mono text-xs font-semibold uppercase tracking-wide",
-        style.className
-      )}
-    >
-      {style.label}
-    </span>
-  )
-}
+import { formatPKR } from "@/lib/utils/format"
+import { computeTeacherBalance, type TeacherBalance } from "@/components/teacher/teacher-balance"
+import { monthlyEarnings } from "@/components/teacher/teacher-metrics"
+import { EarningsAreaChart } from "@/components/teacher/EarningsAreaChart"
+import { WithdrawalRequestModal } from "@/components/teacher/WithdrawalRequestModal"
+import { WithdrawalHistoryTable } from "@/components/teacher/WithdrawalHistoryTable"
+import { TeacherTransactionsTable } from "@/components/teacher/TeacherTransactionsTable"
+import type { WithdrawalValues } from "@/components/teacher/withdrawal-schema"
+import type { Transaction, Payout } from "@/types/database"
 
 export default function EarningsPage() {
   const { user } = useSupabase()
   const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [balance, setBalance] = useState(0)
+  const [payouts, setPayouts] = useState<Payout[]>([])
+  const [balance, setBalance] = useState<TeacherBalance | null>(null)
   const [loading, setLoading] = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)
+
+  const load = useCallback(async () => {
+    if (!user) return
+    setLoading(true)
+    const { createClient } = await import("@/lib/supabase/client")
+    const supabase = createClient()
+    const [txRes, payoutRes] = await Promise.all([
+      supabase.from("transactions").select("*").eq("payee_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("payouts").select("*").eq("recipient_id", user.id).order("created_at", { ascending: false }),
+    ])
+    const txs = (txRes.data || []) as Transaction[]
+    const payoutRows = (payoutRes.data || []) as Payout[]
+    setTransactions(txs)
+    setPayouts(payoutRows)
+    setBalance(computeTeacherBalance(txs, payoutRows))
+    setLoading(false)
+  }, [user])
 
   useEffect(() => {
-    if (!user) return
-    const load = async () => {
+    load()
+  }, [load])
+
+  const handleWithdrawalSubmit = async (values: WithdrawalValues): Promise<{ error: string | null }> => {
+    if (!user) return { error: "Not signed in" }
+    try {
       const { createClient } = await import("@/lib/supabase/client")
       const supabase = createClient()
-      const { data } = await supabase.from("transactions").select("*").eq("payee_id", user.id).order("created_at", { ascending: false })
-      const txs = (data || []) as Transaction[]
-      setTransactions(txs)
-      setBalance(txs.filter((t) => t.status === "completed").reduce((s, t) => s + (t.net_amount || 0), 0))
-      setLoading(false)
+      const { error } = await supabase.from("payouts").insert({
+        recipient_id: user.id,
+        recipient_type: "teacher",
+        amount: values.amount,
+        currency: values.currency,
+        payment_method: values.payment_method,
+        bank_name: values.bank_name || null,
+        account_number: values.account_number,
+        iban: values.iban || null,
+        notes: values.notes || null,
+      })
+      if (error) return { error: error.message }
+      await load()
+      return { error: null }
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Something went wrong. Please try again." }
     }
-    load()
-  }, [user])
+  }
+
+  const completedTransactions = transactions.filter((t) => t.status === "completed")
+  const chartData = monthlyEarnings(completedTransactions)
 
   return (
     <div className="space-y-6">
       <Reveal>
-        <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-text-primary">Earnings</h2>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] text-text-primary">Earnings</h2>
+          <Button variant="aurora" onClick={() => setModalOpen(true)} disabled={!balance || balance.available <= 0}>
+            <Wallet className="h-4 w-4" /> Request Withdrawal
+          </Button>
+        </div>
       </Reveal>
 
-      <StatTile label="Available Balance" value={formatPKR(balance)} accent className="max-w-sm" />
+      <PanelGroup className="grid gap-4 sm:grid-cols-3">
+        <StatTile label="In Escrow" value={formatPKR(balance?.inEscrow ?? 0)} />
+        <StatTile label="Available to Withdraw" value={formatPKR(balance?.available ?? 0)} accent />
+        <StatTile label="Withdrawn" value={formatPKR(balance?.withdrawn ?? 0)} />
+      </PanelGroup>
 
-      {loading ? (
-        <p className="text-text-muted">Loading...</p>
-      ) : transactions.length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface p-8 text-center">
-          <Wallet className="mx-auto mb-3 h-12 w-12 text-text-disabled" />
-          <p className="text-text-muted">No transactions yet</p>
-        </div>
-      ) : (
-        <PanelGroup title="Transaction History">
-          <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-            <table className="w-full min-w-[520px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="px-4 py-3 font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Type</th>
-                  <th className="px-4 py-3 font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Date</th>
-                  <th className="px-4 py-3 font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Status</th>
-                  <th className="px-4 py-3 text-right font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((tx) => (
-                  <tr key={tx.id} className="border-b border-border last:border-0 transition-colors hover:bg-surface-2">
-                    <td className="px-4 py-3 capitalize text-text-primary">{tx.type.replace("_", " ")}</td>
-                    <td className="px-4 py-3 font-mono text-xs tabular-nums text-text-muted">{tx.created_at ? formatDate(tx.created_at) : ""}</td>
-                    <td className="px-4 py-3"><StatusPill status={tx.status} /></td>
-                    <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums text-accent-success">{formatPKR(tx.net_amount || 0)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </PanelGroup>
-      )}
+      <p className="text-sm text-text-muted">
+        Funds from parent payments are held by Hayesh until a withdrawal request is reviewed and approved by an
+        admin. Once approved, the amount is released to the payout method you provide below.
+      </p>
+
+      <PanelGroup title="Earnings, Last 6 Months">
+        <EarningsAreaChart data={chartData} />
+      </PanelGroup>
+
+      <TeacherTransactionsTable transactions={transactions} loading={loading} />
+
+      <WithdrawalHistoryTable payouts={payouts} loading={loading} />
+
+      <WithdrawalRequestModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        availableBalance={balance?.available ?? 0}
+        onSubmit={handleWithdrawalSubmit}
+      />
     </div>
   )
 }
