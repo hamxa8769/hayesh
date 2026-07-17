@@ -15,8 +15,23 @@ interface ThemeToggleProps {
  * through the global CSS rule (transition durations collapse to ~0).
  */
 export function ThemeToggle({ className }: ThemeToggleProps) {
-  const { theme, toggle } = useTheme()
+  const { theme, mounted, toggle } = useTheme()
   const isDark = theme === "dark"
+
+  const shell = cn(
+    "relative inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-md border border-border text-text-muted transition-colors duration-150",
+    "hover:border-accent-primary/50 hover:text-text-primary",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/50",
+    className
+  )
+
+  // Until the theme is resolved on the client, render an icon-less shell.
+  // The real theme depends on localStorage / prefers-color-scheme, which the
+  // server cannot know — rendering an icon from it here would make the server
+  // and client markup disagree and throw React #418 (hydration mismatch).
+  if (!mounted) {
+    return <span aria-hidden="true" className={shell} />
+  }
 
   return (
     <button
@@ -24,12 +39,7 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       onClick={toggle}
       aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
       aria-pressed={!isDark}
-      className={cn(
-        "relative inline-flex h-9 w-9 items-center justify-center overflow-hidden rounded-md border border-border text-text-muted transition-colors duration-150",
-        "hover:border-accent-primary/50 hover:text-text-primary",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/50",
-        className
-      )}
+      className={shell}
     >
       <AnimatePresence mode="wait" initial={false}>
         {isDark ? (
