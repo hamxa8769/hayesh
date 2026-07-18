@@ -1,6 +1,7 @@
 "use client"
 
 import { Menu } from "lucide-react"
+import { NotificationBell } from "@/components/notifications/NotificationBell"
 import { cn } from "@/lib/utils/cn"
 import type { UserRole } from "@/types/database"
 
@@ -32,6 +33,15 @@ export function DashboardHeader({ title, role, collapsed, onMenuOpen }: Props) {
       <div className="flex shrink-0 items-center gap-3">
         <span className="hidden font-mono text-xs text-text-muted sm:inline">JARVIS v1.0</span>
         <div className="h-2 w-2 rounded-full bg-accent-success animate-pulse" />
+        {/*
+          The bell also lives in Navbar, but Navbar only renders on the public
+          landing page — every portal uses this header instead. Without it here
+          a teacher would never see that they had been assigned a student,
+          which is the entire point of the notifications system.
+          isAuthed is always true inside a dashboard: these routes are behind
+          the role gate in middleware.ts.
+        */}
+        <NotificationBell isAuthed />
       </div>
     </header>
   )
