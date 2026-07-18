@@ -49,20 +49,24 @@ export default function EarningsPage() {
   const handleWithdrawalSubmit = async (values: WithdrawalValues): Promise<{ error: string | null }> => {
     if (!user) return { error: "Not signed in" }
     try {
-      const { createClient } = await import("@/lib/supabase/client")
-      const supabase = createClient()
-      const { error } = await supabase.from("payouts").insert({
-        recipient_id: user.id,
-        recipient_type: "teacher",
-        amount: values.amount,
-        currency: values.currency,
-        payment_method: values.payment_method,
-        bank_name: values.bank_name || null,
-        account_number: values.account_number,
-        iban: values.iban || null,
-        notes: values.notes || null,
+      // Bank details are sent to a server route (app/api/payouts/route.ts)
+      // which encrypts account_number/iban before insert — the browser must
+      // never write raw bank details straight into Postgres.
+      const res = await fetch("/api/payouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: values.amount,
+          currency: values.currency,
+          payment_method: values.payment_method,
+          bank_name: values.bank_name || undefined,
+          account_number: values.account_number,
+          iban: values.iban || undefined,
+          notes: values.notes || undefined,
+        }),
       })
-      if (error) return { error: error.message }
+      const json = (await res.json()) as { id?: string; error?: string }
+      if (!res.ok) return { error: json.error || "Something went wrong. Please try again." }
       await load()
       return { error: null }
     } catch (e) {

@@ -35,6 +35,8 @@ const navItems: Record<UserRole, NavItem[]> = {
   ],
   parent: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/parent/dashboard" },
+    { icon: GraduationCap, label: "My Children", href: "/parent/students" },
+    { icon: MessageSquare, label: "Requests", href: "/parent/requests" },
     { icon: Search, label: "Find Teachers", href: "/parent/find-teachers" },
     { icon: Users, label: "Progress", href: "/parent/progress" },
     { icon: CreditCard, label: "Payments", href: "/parent/payments" },

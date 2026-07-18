@@ -23,6 +23,29 @@ const STATUS_BADGE: Record<PaymentStatus, "warning" | "secondary" | "success" | 
 
 type RecipientMap = Record<string, Pick<Profile, "full_name" | "email">>
 
+// account_number is now encrypted server-side (see lib/crypto/field-encryption.ts
+// and app/api/payouts/route.ts) before it is ever written to Postgres. This page
+// is a client component reading rows straight from Supabase, so it CANNOT decrypt
+// them — FIELD_ENCRYPTION_KEY is server-only and must never reach the browser
+// bundle. We therefore only ever show a masked value here. A full reveal would
+// require a dedicated authenticated server route that decrypts on demand; that is
+// intentionally not built, since admins reviewing a payout only need to confirm
+// a request looks legitimate, not read the raw account number.
+//
+// `stored` may be either:
+//   - the new "v1:<iv>:<tag>:<ciphertext>" format -> we can't mask by-content
+//     (it's opaque ciphertext), so show a fixed encrypted placeholder.
+//   - legacy plaintext written before this encryption layer existed -> mask
+//     it the same way lib/crypto/field-encryption.ts's maskAccountNumber does,
+//     showing only the last 4 characters.
+function maskDisplayAccountNumber(stored: string | null): string {
+  if (!stored) return "—"
+  if (stored.startsWith("v1:")) return "•••• (encrypted)"
+  const trimmed = stored.trim()
+  if (trimmed.length <= 4) return "••••"
+  return `••••${trimmed.slice(-4)}`
+}
+
 export default function AdminPaymentsPage() {
   const { user } = useSupabase()
 
@@ -258,7 +281,7 @@ export default function AdminPaymentsPage() {
 
                       <div className="mt-2 grid gap-1 font-mono text-xs text-text-muted sm:grid-cols-3">
                         <span>Bank: {p.bank_name || "—"}</span>
-                        <span>Account: {p.account_number || "—"}</span>
+                        <span>Account: {maskDisplayAccountNumber(p.account_number)}</span>
                         <span>Requested: {p.created_at ? formatDate(p.created_at) : "—"}</span>
                       </div>
                       {exceedsBalance && (
