@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { Star, ArrowLeft, GraduationCap, Briefcase, CalendarClock } from "lucide-react"
+import { CalendarClock, ArrowLeft, Briefcase, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
 import { createClient } from "@/lib/supabase/client"
 import { formatPKR } from "@/lib/utils/format"
+import { DemoBookingModal } from "@/components/teacher-public/DemoBookingModal"
+import { RatingStars } from "@/components/teacher-public/RatingStars"
+import { ReviewList, type ReviewListSummary } from "@/components/teacher-public/ReviewList"
+import { ReviewForm } from "@/components/teacher-public/ReviewForm"
 import type { Teacher } from "@/types/database"
 
 const WEEKDAYS: Array<{ key: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun"; label: string }> = [
@@ -37,18 +41,22 @@ function capitalize(value: string): string {
 export default function TeacherDetailPage() {
   const { id } = useParams()
   const router = useRouter()
+  const teacherId = String(id)
   const [teacher, setTeacher] = useState<Teacher | null>(null)
   const [loading, setLoading] = useState(true)
+  const [demoModalOpen, setDemoModalOpen] = useState(false)
+  const [reviewSummary, setReviewSummary] = useState<ReviewListSummary | null>(null)
+  const [reviewRefreshKey, setReviewRefreshKey] = useState(0)
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
-      const { data } = await supabase.from("teachers").select("*").eq("id", id).single()
+      const { data } = await supabase.from("teachers").select("*").eq("id", teacherId).maybeSingle()
       setTeacher(data as Teacher | null)
       setLoading(false)
     }
     load()
-  }, [id])
+  }, [teacherId])
 
   if (loading) {
     return (
@@ -100,24 +108,33 @@ export default function TeacherDetailPage() {
                 </div>
               )}
 
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <h1 className="text-balance font-display text-3xl font-semibold tracking-tight text-text-primary">
                   {teacher.display_name}
                 </h1>
                 <p className="mt-1 text-text-muted">{teacher.tagline || "Verified teacher"}</p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <span className="flex items-center gap-1.5 font-mono text-sm tabular-nums text-text-primary">
-                    <Star className="h-3.5 w-3.5 text-text-muted" />
-                    {teacher.average_rating ? teacher.average_rating.toFixed(1) : "New"}
-                    {teacher.total_reviews ? (
-                      <span className="text-text-muted">({teacher.total_reviews})</span>
-                    ) : null}
-                  </span>
+                  <RatingStars rating={reviewSummary?.average ?? teacher.average_rating} size="sm" />
+                  {(reviewSummary?.count ?? teacher.total_reviews ?? 0) > 0 && (
+                    <span className="font-mono text-xs tabular-nums text-text-muted">
+                      ({reviewSummary?.count ?? teacher.total_reviews})
+                    </span>
+                  )}
                   {teacher.translation_enabled && <Badge variant="aurora">✦ Multilingual</Badge>}
                 </div>
               </div>
             </div>
+
+            {/* Primary CTA — above the fold, always visible in the header. */}
+            <Button
+              variant="aurora"
+              size="lg"
+              className="mt-6 w-full sm:w-auto"
+              onClick={() => setDemoModalOpen(true)}
+            >
+              Book a Free Demo
+            </Button>
           </div>
         </Reveal>
 
@@ -209,18 +226,28 @@ export default function TeacherDetailPage() {
         {/* Reviews */}
         <Reveal delay={0.25} className="mt-8">
           <span className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Reviews</span>
-          <div className="mt-3 flex items-center gap-6 rounded-lg border border-border bg-surface p-5">
+          <div className="mt-3 flex flex-wrap items-center gap-4 rounded-lg border border-border bg-surface p-5 sm:gap-6">
             <p className="font-mono text-3xl font-semibold tabular-nums text-text-primary">
-              {teacher.average_rating ? teacher.average_rating.toFixed(1) : "—"}
+              {reviewSummary?.average ?? teacher.average_rating
+                ? (reviewSummary?.average ?? teacher.average_rating)!.toFixed(1)
+                : "—"}
             </p>
             <div>
-              <p className="flex items-center gap-1 text-sm text-text-primary">
-                <Star className="h-3.5 w-3.5 text-text-muted" /> Average rating
-              </p>
-              <p className="text-sm text-text-muted">
-                {teacher.total_reviews ?? 0} {teacher.total_reviews === 1 ? "review" : "reviews"}
+              <p className="text-sm text-text-primary">Average rating</p>
+              <RatingStars rating={reviewSummary?.average ?? teacher.average_rating} size="sm" className="mt-1" />
+              <p className="mt-1 text-sm text-text-muted">
+                {reviewSummary?.count ?? teacher.total_reviews ?? 0}{" "}
+                {(reviewSummary?.count ?? teacher.total_reviews ?? 0) === 1 ? "review" : "reviews"}
               </p>
             </div>
+          </div>
+
+          <div className="mt-4">
+            <ReviewList teacherId={teacherId} refreshKey={reviewRefreshKey} onSummaryChange={setReviewSummary} />
+          </div>
+
+          <div className="mt-4">
+            <ReviewForm teacherId={teacherId} onSubmitted={() => setReviewRefreshKey((k) => k + 1)} />
           </div>
         </Reveal>
 
@@ -256,9 +283,19 @@ export default function TeacherDetailPage() {
 
         {/* CTA */}
         <Reveal delay={0.35} className="mt-10">
-          <Button variant="aurora" size="lg" className="w-full">Book Free Demo</Button>
+          <Button variant="aurora" size="lg" className="w-full" onClick={() => setDemoModalOpen(true)}>
+            Book a Free Demo
+          </Button>
         </Reveal>
       </div>
+
+      <DemoBookingModal
+        open={demoModalOpen}
+        onClose={() => setDemoModalOpen(false)}
+        teacherId={teacherId}
+        teacherName={teacher.display_name}
+        subjects={subs}
+      />
     </div>
   )
 }

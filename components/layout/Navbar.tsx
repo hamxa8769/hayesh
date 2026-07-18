@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Menu, X, LayoutDashboard, LogOut } from "lucide-react"
 import { JarvisButton } from "@/components/ui/jarvis-button"
 import { ThemeToggle } from "@/components/ui/ThemeToggle"
+import { NotificationBell } from "@/components/notifications/NotificationBell"
 import { useSupabase } from "@/hooks/useSupabase"
 import { cn } from "@/lib/utils/cn"
 import type { UserRole } from "@/types/database"
@@ -105,6 +106,8 @@ export function Navbar() {
                 </JarvisButton>
               </Link>
 
+              <NotificationBell isAuthed={isAuthed} />
+
               <button
                 ref={accountButtonRef}
                 onClick={() => setMenuOpen((o) => !o)}
@@ -170,9 +173,12 @@ export function Navbar() {
           )}
         </div>
 
-        <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden text-text-muted">
-          {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-        </button>
+        <div className="flex items-center gap-3 md:hidden">
+          {isAuthed && <NotificationBell isAuthed={isAuthed} />}
+          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-text-muted">
+            {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </button>
+        </div>
       </div>
 
       <AnimatePresence>

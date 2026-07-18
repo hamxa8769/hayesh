@@ -59,21 +59,35 @@ export default function ParentRequestsPage() {
 
   const handleSubmit = async (values: RequestValues): Promise<{ error: string | null }> => {
     if (!user) return { error: "You must be signed in." }
-    const { createClient } = await import("@/lib/supabase/client")
-    const supabase = createClient()
+    // Posted to a server route rather than inserted directly from the browser:
+    // creating the row is only half the job, and admins have to be notified.
+    // Writing a notification row for another user (an admin) is correctly
+    // forbidden by RLS from the client, so that fan-out can only happen
+    // server-side. Inserting here directly would leave requests invisible to
+    // admins, which is exactly the bug this replaces.
+    try {
+      const res = await fetch("/api/student-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: values.student_id,
+          subject: values.subject,
+          preferred_tier: values.preferred_tier,
+          notes: values.notes || undefined,
+        }),
+      })
 
-    // Only the columns the RLS grant permits on insert: student_id,
-    // parent_id, subject, preferred_tier, notes. Sending status or
-    // assigned_* here fails with a column-privilege error.
-    const { error: insertError } = await supabase.from("student_requests").insert({
-      student_id: values.student_id,
-      parent_id: user.id,
-      subject: values.subject,
-      preferred_tier: values.preferred_tier,
-      notes: values.notes || null,
-    })
-
-    if (insertError) return { error: insertError.message }
+      if (!res.ok) {
+        const payload: unknown = await res.json().catch(() => null)
+        const message =
+          payload && typeof payload === "object" && "error" in payload
+            ? String((payload as { error: unknown }).error)
+            : "Could not submit your request."
+        return { error: message }
+      }
+    } catch {
+      return { error: "Could not reach the server. Check your connection and try again." }
+    }
 
     await loadData()
     return { error: null }

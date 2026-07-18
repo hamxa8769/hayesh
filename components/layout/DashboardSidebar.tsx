@@ -17,6 +17,8 @@ interface NavItem { icon: React.ComponentType<{ className?: string }>; label: st
 const navItems: Record<UserRole, NavItem[]> = {
   admin: [
     { icon: LayoutDashboard, label: "Overview", href: "/admin" },
+    { icon: MessageSquare, label: "Requests", href: "/admin/requests" },
+    { icon: AlertTriangle, label: "Support", href: "/admin/support" },
     { icon: GraduationCap, label: "Teachers", href: "/admin/teachers" },
     { icon: ShoppingBag, label: "Sellers", href: "/admin/sellers" },
     { icon: Users, label: "Users", href: "/admin/users" },
