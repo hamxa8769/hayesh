@@ -44,7 +44,7 @@ export function Hero() {
 
   return (
     <section className="relative overflow-hidden pb-24 pt-40 sm:pb-28 sm:pt-48">
-      {/* obsidian scrim keeps hero copy legible over the AuroraField shader */}
+      {/* obsidian scrim keeps hero copy legible over the ScrollWorld particle field */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background/35 via-background/75 to-background" />
 
       <div className="relative mx-auto w-full max-w-[1200px] px-6">

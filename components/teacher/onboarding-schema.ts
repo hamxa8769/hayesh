@@ -79,6 +79,20 @@ export const onboardingSchema = z.object({
   private_price_pkr: z.string().trim().optional(),
   availability: z.record(z.string(), z.array(z.string())),
 })
+  // A teacher with no rate on any tier is unbookable, and renders publicly as
+  // "—" across every tier on the landing page and discovery grid, which reads
+  // as broken. Each individual tier stays optional (a teacher may offer only
+  // private tuition, say), but at least one must be priced.
+  .refine(
+    (values) =>
+      Boolean(values.group_price_pkr?.trim()) ||
+      Boolean(values.standard_price_pkr?.trim()) ||
+      Boolean(values.private_price_pkr?.trim()),
+    {
+      message: "Set a monthly price for at least one tier",
+      path: ["group_price_pkr"],
+    },
+  )
 
 export type OnboardingValues = z.infer<typeof onboardingSchema>
 

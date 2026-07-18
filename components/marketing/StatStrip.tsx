@@ -71,6 +71,8 @@ export function StatStrip() {
   const prefersReducedMotion = useReducedMotion() ?? false
 
   useEffect(() => {
+    let cancelled = false
+
     const loadCounts = async () => {
       const supabase = createClient()
       const [teachersResult, gigsResult, aiServicesResult] = await Promise.all([
@@ -79,6 +81,11 @@ export function StatStrip() {
         supabase.from("ai_services").select("id", { count: "exact", head: true }).eq("status", "active"),
       ])
 
+      if (cancelled) return
+
+      // A failed count query resolves to `count: null`, which the `?? 0`
+      // fallback below already renders gracefully as "0+" rather than
+      // throwing or leaving a blank tile.
       setCounts({
         teachers: teachersResult.count ?? 0,
         gigs: gigsResult.count ?? 0,
@@ -87,6 +94,9 @@ export function StatStrip() {
     }
 
     loadCounts()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return (
