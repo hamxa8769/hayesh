@@ -32,8 +32,11 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: LayoutDashboard, label: "Dashboard", href: "/teacher/dashboard" },
     { icon: Calendar, label: "Sessions", href: "/teacher/sessions" },
     { icon: Users, label: "Students", href: "/teacher/students" },
+    { icon: GraduationCap, label: "Assignments", href: "/teacher/assignments" },
+    { icon: MessageSquare, label: "Announcements", href: "/teacher/announcements" },
     { icon: Wallet, label: "Earnings", href: "/teacher/earnings" },
     { icon: UserCog, label: "Profile", href: "/teacher/profile" },
+    { icon: AlertTriangle, label: "Support", href: "/teacher/support" },
   ],
   parent: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/parent/dashboard" },
