@@ -29,7 +29,7 @@ export function TeacherProfileStep({ form, email, userId }: TeacherProfileStepPr
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line-strong bg-surface-2">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line-strong bg-surface-elevated">
           {photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage URL, no next/image domain configured
             <img src={photoUrl} alt="Profile preview" className="h-full w-full object-cover" />

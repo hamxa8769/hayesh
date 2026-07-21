@@ -22,6 +22,7 @@ interface DashboardStats {
   sessionsThisWeek: number
   sessionsSpark: number[]
   balanceSpark: number[]
+  pendingDemoRequests: number
 }
 
 interface RatingSummary {
@@ -39,7 +40,7 @@ const QUICK_ACTIONS = [
 export default function TeacherDashboard() {
   const { user } = useSupabase()
   const [teacher, setTeacher] = useState<Teacher | null>(null)
-  const [stats, setStats] = useState<DashboardStats>({ activeStudents: 0, sessionsThisWeek: 0, sessionsSpark: [], balanceSpark: [] })
+  const [stats, setStats] = useState<DashboardStats>({ activeStudents: 0, sessionsThisWeek: 0, sessionsSpark: [], balanceSpark: [], pendingDemoRequests: 0 })
   const [rating, setRating] = useState<RatingSummary>({ average: null, totalReviews: 0 })
   const [balance, setBalance] = useState<TeacherBalance | null>(null)
   const [upcoming, setUpcoming] = useState<Session[]>([])
@@ -89,12 +90,13 @@ export default function TeacherDashboard() {
         const teacherData = teacherRow as Teacher
         const week = currentWeekRange()
 
-        const [activeSubs, weekSessions, upcomingSessions, allTx, allPayouts] = await Promise.all([
+        const [activeSubs, weekSessions, upcomingSessions, allTx, allPayouts, pendingDemos] = await Promise.all([
           supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("teacher_id", teacherData.id).eq("status", "active"),
           supabase.from("sessions").select("scheduled_at").eq("teacher_id", teacherData.id).gte("scheduled_at", week.start.toISOString()).lt("scheduled_at", week.end.toISOString()),
           supabase.from("sessions").select("*").eq("teacher_id", teacherData.id).eq("status", "scheduled").order("scheduled_at", { ascending: true }).limit(5),
           supabase.from("transactions").select("*").eq("payee_id", user.id),
           supabase.from("payouts").select("*").eq("recipient_id", user.id),
+          supabase.from("demo_bookings").select("id", { count: "exact", head: true }).eq("teacher_id", teacherData.id).eq("status", "pending"),
         ])
 
         if (cancelled) return
@@ -109,6 +111,7 @@ export default function TeacherDashboard() {
           sessionsThisWeek: weekSessionRows.length,
           sessionsSpark: sessionsPerDaySpark(weekSessionRows, week),
           balanceSpark: cumulativeEarningsSpark(transactions.filter((t) => t.status === "completed")),
+          pendingDemoRequests: pendingDemos.count || 0,
         })
         setRating({
           average: teacherData.average_rating ?? null,
@@ -152,7 +155,7 @@ export default function TeacherDashboard() {
           <span aria-hidden="true" className="aurora-bg absolute inset-x-0 top-0 h-[2px]" />
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-2">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-elevated">
                 <GraduationCap className="h-6 w-6 text-accent-primary" />
               </div>
               <div>
@@ -188,6 +191,18 @@ export default function TeacherDashboard() {
               value={rating.average != null ? rating.average.toFixed(1) : "—"}
               delta={rating.totalReviews > 0 ? { value: `${rating.totalReviews} reviews`, direction: "flat" } : undefined}
             />
+            <Link href="/teacher/sessions" className="block">
+              <StatTile
+                label="Pending Demo Requests"
+                value={loading ? "…" : stats.pendingDemoRequests}
+                delta={
+                  !loading && stats.pendingDemoRequests > 0
+                    ? { value: "Needs your response", direction: "down" }
+                    : undefined
+                }
+                className="cursor-pointer transition-colors hover:border-line-strong"
+              />
+            </Link>
           </PanelGroup>
 
           {balance && <EscrowBalanceCard balance={balance} />}
@@ -270,7 +285,7 @@ export default function TeacherDashboard() {
             <Link
               key={a.href}
               href={a.href}
-              className="flex items-center gap-3 rounded-lg border border-border p-4 transition-colors hover:border-line-strong hover:bg-surface-2"
+              className="flex items-center gap-3 rounded-lg border border-border p-4 transition-colors hover:border-line-strong hover:bg-surface-elevated"
             >
               <a.icon className="h-5 w-5 text-accent-primary" />
               <span className="text-sm text-text-primary">{a.label}</span>

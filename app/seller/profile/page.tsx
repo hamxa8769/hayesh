@@ -4,11 +4,11 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import type { DefaultValues } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2, ShieldCheck, UserCog } from "lucide-react"
+import { Loader2, UserCog } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
+import { PayoutAccountEditor } from "@/components/shared/PayoutAccountEditor"
 import { Reveal } from "@/components/motion/Reveal"
 import { PanelGroup } from "@/components/dashboard/PanelGroup"
 import { ChipInput } from "@/components/seller/ChipInput"
@@ -264,74 +264,8 @@ export default function SellerProfilePage() {
         </Button>
       </form>
 
-      <PanelGroup title="Verification & Payouts">
-        <div className="space-y-4 rounded-lg border border-border bg-surface p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-accent-warning" />
-              <h3 className="font-display text-base font-semibold text-text-primary">KYC / Payout Details</h3>
-            </div>
-            <Badge variant="warning">Coming Soon</Badge>
-          </div>
-
-          <p className="text-sm text-text-muted">
-            Verification and payout collection aren&apos;t live yet. Anything entered below is kept only in this
-            browser session and is never saved to your account.
-          </p>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Full Legal Name</Label>
-              <Input
-                value={kyc.fullLegalName}
-                onChange={(e) => setKyc((k) => ({ ...k, fullLegalName: e.target.value }))}
-                placeholder="As on your ID"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>CNIC / ID Number</Label>
-              <Input
-                value={kyc.idNumber}
-                onChange={(e) => setKyc((k) => ({ ...k, idNumber: e.target.value }))}
-                placeholder="XXXXX-XXXXXXX-X"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Payout Method</Label>
-              <select
-                value={kyc.payoutMethod}
-                onChange={(e) => setKyc((k) => ({ ...k, payoutMethod: e.target.value }))}
-                className="flex h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary transition-all duration-300 focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
-              >
-                <option value="">Select a method</option>
-                <option value="ibft">IBFT (Bank Transfer)</option>
-                <option value="jazzcash">JazzCash</option>
-                <option value="easypaisa">Easypaisa</option>
-                <option value="stripe">Stripe Connect (international)</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Bank Name</Label>
-              <Input
-                value={kyc.bankName}
-                onChange={(e) => setKyc((k) => ({ ...k, bankName: e.target.value }))}
-                placeholder="e.g. HBL, Meezan Bank"
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label>Account Number / IBAN</Label>
-              <Input
-                value={kyc.accountNumber}
-                onChange={(e) => setKyc((k) => ({ ...k, accountNumber: e.target.value }))}
-                placeholder="PKXX XXXX XXXX XXXX XXXX XXXX"
-              />
-            </div>
-          </div>
-
-          <Button type="button" variant="secondary" disabled className="cursor-not-allowed opacity-60">
-            Submit for Verification (Coming Soon)
-          </Button>
-        </div>
+      <PanelGroup title="Withdrawal Account">
+        <PayoutAccountEditor />
       </PanelGroup>
     </div>
   )

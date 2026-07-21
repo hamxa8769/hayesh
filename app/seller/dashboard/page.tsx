@@ -95,7 +95,7 @@ export default function SellerDashboard() {
           <span aria-hidden="true" className="aurora-bg absolute inset-x-0 top-0 h-[2px]" />
           <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-2">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-line-strong bg-surface-elevated">
                 <Store className="h-6 w-6 text-accent-primary" />
               </div>
               <div>

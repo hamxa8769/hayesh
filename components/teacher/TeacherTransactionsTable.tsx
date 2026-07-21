@@ -37,7 +37,7 @@ export function TeacherTransactionsTable({ transactions, loading }: TeacherTrans
           </thead>
           <tbody>
             {transactions.map((tx) => (
-              <tr key={tx.id} className="border-b border-border last:border-0 transition-colors hover:bg-surface-2">
+              <tr key={tx.id} className="border-b border-border last:border-0 transition-colors hover:bg-surface-elevated">
                 <td className="px-4 py-3 capitalize text-text-primary">{tx.type.replace("_", " ")}</td>
                 <td className="px-4 py-3 font-mono text-xs tabular-nums text-text-muted">
                   {tx.created_at ? formatDate(tx.created_at) : ""}

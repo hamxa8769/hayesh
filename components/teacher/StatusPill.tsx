@@ -13,7 +13,7 @@ const TONE_STYLES: Record<PillTone, string> = {
   warning: "border-transparent bg-accent-warning/20 text-accent-warning",
   info: "border-[#56B6FF]/30 bg-[#56B6FF]/10 text-[#56B6FF]",
   danger: "border-transparent bg-accent-danger/20 text-accent-danger",
-  neutral: "border-line-strong bg-surface-2 text-text-muted",
+  neutral: "border-line-strong bg-surface-elevated text-text-muted",
 }
 
 /** Maps `transactions.status` (PaymentStatus) and `payouts.status` (PayoutStatus) to a semantic tone. */

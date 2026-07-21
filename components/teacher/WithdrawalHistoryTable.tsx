@@ -38,7 +38,7 @@ export function WithdrawalHistoryTable({ payouts, loading }: WithdrawalHistoryTa
           </thead>
           <tbody>
             {payouts.map((p) => (
-              <tr key={p.id} className="border-b border-border last:border-0 transition-colors hover:bg-surface-2">
+              <tr key={p.id} className="border-b border-border last:border-0 transition-colors hover:bg-surface-elevated">
                 <td className="px-4 py-3 font-mono text-xs tabular-nums text-text-muted">
                   {p.created_at ? formatDate(p.created_at) : "—"}
                 </td>
