@@ -5,6 +5,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { Search, CreditCard } from "lucide-react"
 import { JarvisCard } from "@/components/ui/jarvis-card"
+import { DashboardFeed } from "@/components/parent/DashboardFeed"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatPKR, formatDate } from "@/lib/utils/format"
 import type { Subscription } from "@/types/database"
@@ -46,6 +47,8 @@ export default function ParentDashboard() {
           <p className="mt-1 font-mono text-2xl font-bold text-text-primary">{new Set(subs.map((s) => s.child_name).filter(Boolean)).size}</p>
         </JarvisCard>
       </div>
+
+      <DashboardFeed />
 
       <JarvisCard glow="none" className="p-6">
         <h3 className="mb-4 font-display text-lg font-bold">Quick Actions</h3>

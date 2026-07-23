@@ -72,6 +72,9 @@ export function PaymentMethodCard({ paymentMethod, index = 0, onSetDefault, onDe
             </span>
             <div className="min-w-0">
               <p className="truncate font-display text-base font-bold text-text-primary">{displayLabel(paymentMethod)}</p>
+              {paymentMethod.account_holder_name && (
+                <p className="truncate text-xs text-text-muted">{paymentMethod.account_holder_name}</p>
+              )}
               <p className="mt-0.5 truncate font-mono text-xs tabular-nums text-text-muted">
                 •••• {paymentMethod.account_last4 ?? "----"}
               </p>

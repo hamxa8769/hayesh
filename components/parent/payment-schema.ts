@@ -37,10 +37,27 @@ export const PAYMENT_METHOD_REFERENCE_HINT: Record<PaymentMethodOption, string> 
   bank_transfer: "Bank account number / IBAN",
 }
 
+/** Label for the account-holder-name field, worded per method. */
+export const PAYMENT_METHOD_HOLDER_LABEL: Record<PaymentMethodOption, string> = {
+  card_pk: "Name on card",
+  jazzcash: "JazzCash account holder name",
+  easypaisa: "Easypaisa account holder name",
+  ibft: "NayaPay account holder name",
+  bank_transfer: "Bank account holder name",
+}
+
 /** Client form schema — mirrors the server-side schema in app/api/payment-methods/route.ts. */
 export const paymentMethodFormSchema = z.object({
   method: z.enum(PAYMENT_METHOD_OPTIONS, { error: "Choose a payment method" }),
   label: z.string().trim().max(60, "Keep it under 60 characters").optional(),
+  // The name on the wallet / card / bank account. Required for every method:
+  // a mobile-wallet or bank transfer can't be reconciled without knowing whose
+  // account it is, and cards carry a cardholder name too.
+  account_holder_name: z
+    .string()
+    .trim()
+    .min(2, "Enter the account holder's name")
+    .max(80, "Keep it under 80 characters"),
   account_reference: z
     .string()
     .trim()
@@ -61,6 +78,7 @@ export interface PaymentMethodListItem {
   id: string
   method: PaymentMethod
   label: string | null
+  account_holder_name: string | null
   account_last4: string | null
   is_default: boolean | null
   created_at: string | null

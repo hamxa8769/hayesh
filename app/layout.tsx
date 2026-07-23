@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { ThemeProvider } from "@/components/providers/ThemeProvider"
+import { BrandingProvider } from "@/components/branding/BrandingProvider"
+import { getBranding, buildBrandingStyleCss } from "@/lib/branding"
 import "./globals.css"
 
 const geist = Geist({
@@ -37,14 +39,24 @@ const NO_FLASH_THEME_SCRIPT = `
 })();
 `
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Read admin-configured branding on every request and turn it into an
+  // inline stylesheet of CSS variable overrides. Rendered in <head> so it
+  // themes SSR output with no flash and no client JS. See lib/branding.ts
+  // for how each value is validated before it can reach this string.
+  const branding = await getBranding()
+  const brandingStyleCss = buildBrandingStyleCss(branding)
+
   return (
     <html lang="en" className={`${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_THEME_SCRIPT }} />
+        <style id="hayesh-branding" dangerouslySetInnerHTML={{ __html: brandingStyleCss }} />
       </head>
       <body className="min-h-screen bg-background font-body text-text-primary antialiased" suppressHydrationWarning>
-        <ThemeProvider>{children}</ThemeProvider>
+        <BrandingProvider branding={branding}>
+          <ThemeProvider>{children}</ThemeProvider>
+        </BrandingProvider>
       </body>
     </html>
   )

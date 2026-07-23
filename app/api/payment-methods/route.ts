@@ -26,6 +26,13 @@ const PAYMENT_METHOD_ENUM = ["stripe", "jazzcash", "easypaisa", "ibft", "bank_tr
 const createSchema = z.object({
   method: z.enum(PAYMENT_METHOD_ENUM, { error: "Invalid payment method" }),
   label: z.string().trim().max(60, "Keep the label under 60 characters").optional(),
+  // Plaintext (migration 014): the account holder's name must be readable by an
+  // admin reconciling a transfer, so unlike account_reference it is NOT encrypted.
+  account_holder_name: z
+    .string()
+    .trim()
+    .min(2, "Enter the account holder's name")
+    .max(80, "Keep it under 80 characters"),
   account_reference: z
     .string()
     .trim()
@@ -108,11 +115,12 @@ export async function POST(
       user_id: user.id,
       method: values.method,
       label: values.label || null,
+      account_holder_name: values.account_holder_name,
       account_last4: accountLast4,
       account_reference: encryptedReference,
       is_default: values.is_default,
     })
-    .select("id, method, label, account_last4, is_default, created_at")
+    .select("id, method, label, account_holder_name, account_last4, is_default, created_at")
     .maybeSingle()
 
   if (error) {

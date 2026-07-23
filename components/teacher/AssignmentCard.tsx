@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { BookOpen, CalendarDays, Loader2, Paperclip } from "lucide-react"
+import { BookOpen, CalendarDays, Loader2, Paperclip, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { createClient } from "@/lib/supabase/client"
@@ -18,6 +18,7 @@ import {
 export interface AssignmentCardProps {
   assignment: AssignmentRow
   onGraded: (id: string, values: GradeAssignmentValues) => void
+  onReopened?: (id: string) => void
 }
 
 const STATUS_STYLE: Record<string, { label: string; className: string }> = {
@@ -36,11 +37,36 @@ function asAttachments(value: unknown): Attachment[] {
   return value.filter((item): item is Attachment => typeof item === "object" && item !== null)
 }
 
-export function AssignmentCard({ assignment, onGraded }: AssignmentCardProps) {
+export function AssignmentCard({ assignment, onGraded, onReopened }: AssignmentCardProps) {
   const [grading, setGrading] = useState(false)
   const [gradeError, setGradeError] = useState<string | null>(null)
+  const [reopening, setReopening] = useState(false)
+  const [reopenError, setReopenError] = useState<string | null>(null)
   const style = STATUS_STYLE[assignment.status] ?? STATUS_STYLE.assigned
   const submissionAttachments = asAttachments(assignment.submission_attachments)
+  const canReopen = assignment.status === "submitted" || assignment.status === "graded"
+
+  const reopenAssignment = async () => {
+    if (!window.confirm("Send this homework back to the student to edit? They'll be able to resubmit it.")) {
+      return
+    }
+    setReopening(true)
+    setReopenError(null)
+    try {
+      const res = await fetch("/api/teacher/assignments/reopen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignment_id: assignment.id }),
+      })
+      const json = (await res.json()) as { id?: string; error?: string }
+      if (!res.ok) throw new Error(json.error ?? "Could not reopen this assignment")
+      onReopened?.(assignment.id)
+    } catch (e) {
+      setReopenError(e instanceof Error ? e.message : "Could not reopen this assignment")
+    } finally {
+      setReopening(false)
+    }
+  }
 
   const {
     register,
@@ -163,7 +189,21 @@ export function AssignmentCard({ assignment, onGraded }: AssignmentCardProps) {
             </div>
           </div>
           {gradeError && <p className="text-xs text-accent-danger">{gradeError}</p>}
-          <div className="flex justify-end">
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={reopening}
+              onClick={reopenAssignment}
+            >
+              {reopening ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" />
+              )}
+              Reopen for edits
+            </Button>
             <Button type="submit" variant="aurora" size="sm" disabled={grading}>
               {grading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Save Grade
@@ -171,6 +211,27 @@ export function AssignmentCard({ assignment, onGraded }: AssignmentCardProps) {
           </div>
         </form>
       )}
+
+      {canReopen && assignment.status === "graded" && (
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={reopening}
+            onClick={reopenAssignment}
+          >
+            {reopening ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3.5 w-3.5" />
+            )}
+            Reopen for edits
+          </Button>
+        </div>
+      )}
+
+      {reopenError && <p className="mt-2 text-xs text-accent-danger">{reopenError}</p>}
     </div>
   )
 }

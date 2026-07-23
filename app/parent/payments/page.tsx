@@ -60,7 +60,7 @@ export default function ParentPaymentsPage() {
         // to render a masked card. The ciphertext never reaches the browser.
         supabase
           .from("payment_methods")
-          .select("id, method, label, account_last4, is_default, created_at")
+          .select("id, method, label, account_holder_name, account_last4, is_default, created_at")
           .eq("user_id", user.id)
           .order("is_default", { ascending: false })
           .order("created_at", { ascending: false }),
@@ -105,6 +105,7 @@ export default function ParentPaymentsPage() {
         body: JSON.stringify({
           method: values.method,
           label: values.label || undefined,
+          account_holder_name: values.account_holder_name,
           account_reference: values.account_reference,
           is_default: values.is_default,
         }),

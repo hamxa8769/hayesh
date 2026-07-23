@@ -7,7 +7,13 @@ import { AlertTriangle, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { JarvisCard } from "@/components/ui/jarvis-card"
 import { useSupabase } from "@/hooks/useSupabase"
-import { ProgressFeed, type Assignment, type AnnouncementItem, type TeacherNote } from "@/components/parent/ProgressFeed"
+import {
+  ProgressFeed,
+  type Assignment,
+  type AnnouncementItem,
+  type SubmissionAttachment,
+  type TeacherNote,
+} from "@/components/parent/ProgressFeed"
 import { AssignmentSubmitModal } from "@/components/parent/AssignmentSubmitModal"
 import { cn } from "@/lib/utils/cn"
 import type { Student } from "@/components/parent/student-schema"
@@ -220,7 +226,9 @@ export default function ParentProgressPage() {
     loadProgress(selected.full_name)
   }, [selectedStudentId, students, loadProgress])
 
-  const handleSubmitAssignment = async (note: string): Promise<{ error: string | null }> => {
+  const handleSubmitAssignment = async (
+    attachments: SubmissionAttachment[]
+  ): Promise<{ error: string | null }> => {
     if (!submitTarget) return { error: "No assignment selected" }
     try {
       const { createClient } = await import("@/lib/supabase/client")
@@ -229,13 +237,15 @@ export default function ParentProgressPage() {
       // Sends ONLY status/submitted_at/submission_attachments — migration
       // 011's enforce_assignment_write_scope BEFORE UPDATE trigger rejects a
       // parent write that touches anything else (title, grade, feedback,
-      // etc.), so no other column may appear in this payload.
+      // etc.), so no other column may appear in this payload. The
+      // attachments themselves (uploaded files + optional note) are built by
+      // AssignmentSubmitModal, which also performs the storage upload.
       const { error } = await supabase
         .from("assignments")
         .update({
           status: "submitted",
           submitted_at: new Date().toISOString(),
-          submission_attachments: note ? [{ type: "note", text: note, created_at: new Date().toISOString() }] : [],
+          submission_attachments: attachments,
         })
         .eq("id", submitTarget.id)
 

@@ -12,6 +12,7 @@ import {
   PAYMENT_METHOD_OPTIONS,
   PAYMENT_METHOD_OPTION_LABELS,
   PAYMENT_METHOD_REFERENCE_HINT,
+  PAYMENT_METHOD_HOLDER_LABEL,
   paymentMethodFormSchema,
   type PaymentMethodFormValues,
 } from "@/components/parent/payment-schema"
@@ -26,6 +27,7 @@ export interface PaymentMethodModalProps {
 const emptyValues: PaymentMethodFormValues = {
   method: "card_pk",
   label: "",
+  account_holder_name: "",
   account_reference: "",
   is_default: false,
 }
@@ -163,6 +165,19 @@ export function PaymentMethodModal({ open, onClose, hasExistingDefault, onSubmit
                   ))}
                 </select>
                 {errors.method && <p className="text-xs text-accent-danger">{errors.method.message}</p>}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="payment-method-holder">{PAYMENT_METHOD_HOLDER_LABEL[selectedMethod]}</Label>
+                <Input
+                  id="payment-method-holder"
+                  {...register("account_holder_name")}
+                  placeholder="Full name as registered on the account"
+                  autoComplete="off"
+                />
+                {errors.account_holder_name && (
+                  <p className="text-xs text-accent-danger">{errors.account_holder_name.message}</p>
+                )}
               </div>
 
               <div className="space-y-1.5">

@@ -1,12 +1,23 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { motion, useReducedMotion } from "framer-motion"
-import { AlertTriangle, BookOpen, Megaphone, MessageSquare, TrendingUp } from "lucide-react"
+import { AlertTriangle, BookOpen, Megaphone, MessageSquare, Paperclip, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { JarvisCard } from "@/components/ui/jarvis-card"
 import { StatusPill, type PillTone } from "@/components/teacher/StatusPill"
 import { formatDate, formatDateTime } from "@/lib/utils/format"
 import type { StudentProgress } from "@/types/database"
+
+/**
+ * One entry of `assignments.submission_attachments` (jsonb, migration 011).
+ * A "file" entry points at an object in the private `homework-submissions`
+ * bucket (migration 012) at `${student_id}/${assignment_id}/${filename}`; a
+ * "note" entry is the free-text note the parent left. Both may be present.
+ */
+export type SubmissionAttachment =
+  | { type: "note"; text: string; created_at: string }
+  | { type: "file"; name: string; path: string; size: number; uploaded_at: string }
 
 /**
  * public.assignments row (migration 011) plus the joined teacher display
@@ -24,7 +35,7 @@ export interface Assignment {
   due_date: string | null
   status: "assigned" | "submitted" | "graded"
   submitted_at: string | null
-  submission_attachments: unknown
+  submission_attachments: SubmissionAttachment[] | null
   grade: string | null
   feedback: string | null
   created_at: string | null
@@ -120,6 +131,94 @@ function EmptyState({ icon: Icon, message }: { icon: typeof BookOpen; message: s
   )
 }
 
+type FileAttachment = Extract<SubmissionAttachment, { type: "file" }>
+
+/**
+ * Resolves a signed URL (5 min TTL) for a file in the private
+ * `homework-submissions` bucket and renders it as a link once ready. The
+ * bucket is private, so a public URL would 404 — every view must go through
+ * `createSignedUrl`.
+ */
+function FileAttachmentLink({ attachment }: { attachment: FileAttachment }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    const load = async () => {
+      try {
+        const { createClient } = await import("@/lib/supabase/client")
+        const supabase = createClient()
+        const { data, error: signError } = await supabase.storage
+          .from("homework-submissions")
+          .createSignedUrl(attachment.path, 300)
+        if (cancelled) return
+        if (signError || !data?.signedUrl) {
+          setError("Link unavailable")
+          setLoading(false)
+          return
+        }
+        setUrl(data.signedUrl)
+        setLoading(false)
+      } catch {
+        if (!cancelled) {
+          setError("Link unavailable")
+          setLoading(false)
+        }
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [attachment.path])
+
+  if (loading) {
+    return <span className="text-xs text-text-muted">{attachment.name} — loading link…</span>
+  }
+  if (error || !url) {
+    return (
+      <span className="text-xs text-accent-danger">
+        {attachment.name} — {error ?? "link unavailable"}
+      </span>
+    )
+  }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-xs text-accent-primary underline underline-offset-2 hover:text-accent-primary/80"
+    >
+      <Paperclip className="h-3 w-3" />
+      {attachment.name}
+    </a>
+  )
+}
+
+function SubmissionAttachments({ attachments }: { attachments: SubmissionAttachment[] }) {
+  if (attachments.length === 0) return null
+  return (
+    <div className="mt-3 space-y-1.5 rounded-lg border border-border bg-surface-elevated/40 p-3">
+      <p className="font-mono text-xs uppercase tracking-wide text-text-muted">Submission</p>
+      <div className="flex flex-col gap-1.5">
+        {attachments.map((attachment, i) =>
+          attachment.type === "file" ? (
+            <FileAttachmentLink key={attachment.path} attachment={attachment} />
+          ) : (
+            <p key={`note-${i}`} className="text-xs text-text-muted">
+              Note: {attachment.text}
+            </p>
+          )
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** The parent's full progress feed on /parent/progress: homework, teacher notes, announcements, progress reports. */
 export function ProgressFeed({
   assignments,
@@ -174,6 +273,10 @@ export function ProgressFeed({
                     <p className="mt-3 whitespace-pre-wrap text-sm text-text-muted">{assignment.instructions}</p>
                   )}
 
+                  {assignment.submission_attachments && assignment.submission_attachments.length > 0 && (
+                    <SubmissionAttachments attachments={assignment.submission_attachments} />
+                  )}
+
                   {assignment.status === "graded" && (
                     <div className="mt-3 space-y-1 rounded-lg border border-accent-success/20 bg-accent-success/5 p-3">
                       <p className="font-mono text-xs uppercase tracking-wide text-accent-success">
@@ -183,6 +286,11 @@ export function ProgressFeed({
                     </div>
                   )}
 
+                  {/* Edit-lock: the parent may only submit while status === "assigned". The
+                      guard trigger (migration 011) restricts which columns a parent write may
+                      touch, but does not itself stop a second submit while status stays
+                      "submitted" — so the lock is enforced here in the UI by only ever showing
+                      the Submit control in the "assigned" state. */}
                   {assignment.status === "assigned" && (
                     <div className="mt-4 flex justify-end">
                       <Button type="button" variant="aurora" size="sm" onClick={() => onSubmitAssignment(assignment)}>
@@ -191,8 +299,15 @@ export function ProgressFeed({
                     </div>
                   )}
 
-                  {assignment.status === "submitted" && assignment.submitted_at && (
-                    <p className="mt-3 text-xs text-text-muted">Submitted {formatDateTime(assignment.submitted_at)}</p>
+                  {assignment.status === "submitted" && (
+                    <div className="mt-3 space-y-1">
+                      {assignment.submitted_at && (
+                        <p className="text-xs text-text-muted">Submitted {formatDateTime(assignment.submitted_at)}</p>
+                      )}
+                      <p className="text-xs text-text-muted">
+                        Submitted — waiting for your teacher. Ask them to reopen it if you need to change it.
+                      </p>
+                    </div>
                   )}
                 </JarvisCard>
               </motion.div>
