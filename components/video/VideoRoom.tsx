@@ -1,23 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import {
-  LiveKitRoom,
-  RoomAudioRenderer,
-  TrackToggle,
-  DisconnectButton,
-  ParticipantTile,
-  useTracks,
-  useParticipants,
-  useConnectionState,
-  useLocalParticipant,
-  useRoomContext,
-} from '@livekit/components-react'
-import { ConnectionState, Track } from 'livekit-client'
-import type { TrackReference } from '@livekit/components-core'
-import { Mic, MicOff, Video, VideoOff, ScreenShare, ScreenShareOff, PhoneOff, Users, X, WifiOff } from 'lucide-react'
+import { LiveKitRoom, RoomAudioRenderer, useConnectionState, useRoomContext } from '@livekit/components-react'
+import { ConnectionState } from 'livekit-client'
+import { X, WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
+import { MeetingStage } from '@/components/video/MeetingStage'
+import { ControlDock } from '@/components/video/ControlDock'
+import { ChatSheet } from '@/components/video/ChatSheet'
+import { ParticipantsSheet } from '@/components/video/ParticipantsSheet'
+import { ReactionsOverlay } from '@/components/video/ReactionsOverlay'
+import { useRoomMessaging } from '@/components/video/room-messaging'
 
 /**
  * VideoRoom — the actual LiveKit call surface. This component (and every
@@ -140,12 +133,11 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
   const roleBadge = getRoleBadge(role, isHost)
   const room = useRoomContext()
   const connectionState = useConnectionState(room)
-  const participants = useParticipants()
-  const { isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled } = useLocalParticipant()
-  const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare], { onlySubscribed: false })
-  const [participantListOpen, setParticipantListOpen] = useState(false)
-  const [deviceError, setDeviceError] = useState<string | null>(null)
-  const prefersReducedMotion = useReducedMotion()
+  const [chatOpen, setChatOpen] = useState(false)
+  const [participantsOpen, setParticipantsOpen] = useState(false)
+
+  const { messages, reactions, handsRaised, unreadCount, sendChat, sendReaction, raiseHand, markRead } =
+    useRoomMessaging()
 
   // Defensive cleanup: LiveKitRoom already disconnects on unmount, but this
   // guarantees it — a leaked room connection keeps the camera light on and
@@ -164,6 +156,14 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
   const isReconnecting =
     connectionState === ConnectionState.Reconnecting || connectionState === ConnectionState.SignalReconnecting
   const isConnecting = connectionState === ConnectionState.Connecting
+
+  const handleToggleChat = () => {
+    setChatOpen((open) => {
+      const next = !open
+      if (next) markRead()
+      return next
+    })
+  }
 
   return (
     <div className="relative flex flex-1 flex-col">
@@ -205,147 +205,28 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2 sm:p-3">
-        {tracks.length > 0 ? (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {tracks.map((trackRef) => (
-              <TileFrame key={`${trackRef.participant.identity}-${trackRef.source}`} trackRef={trackRef} />
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center justify-center gap-3 py-10">
-            {participants.map((participant) => (
-              <div
-                key={participant.identity}
-                className="flex flex-col items-center gap-2 rounded-lg border border-border bg-surface-elevated px-4 py-3"
-              >
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-primary/15 font-display text-lg font-semibold text-accent-primary">
-                  {(participant.name || participant.identity).slice(0, 1).toUpperCase()}
-                </span>
-                <span className="max-w-[8rem] truncate text-xs text-text-muted">{participant.name || participant.identity}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <MeetingStage handsRaised={handsRaised} />
+      <ReactionsOverlay reactions={reactions} />
 
-      <AnimatePresence>
-        {participantListOpen && (
-          <motion.div
-            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
-            transition={{ duration: 0.2 }}
-            className="absolute inset-x-2 bottom-20 z-30 max-h-64 overflow-y-auto rounded-lg border border-line-strong bg-surface-elevated p-3 shadow-[0_8px_30px_rgba(0,0,0,0.5)] sm:right-3 sm:left-auto sm:w-72"
-          >
-            <div className="mb-2 flex items-center justify-between">
-              <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">
-                Participants ({participants.length})
-              </p>
-              <button type="button" onClick={() => setParticipantListOpen(false)} className="text-text-muted hover:text-text-primary">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <ul className="space-y-1.5">
-              {participants.map((participant) => (
-                <li key={participant.identity} className="flex items-center justify-between gap-2 text-sm text-text-primary">
-                  <span className="truncate">{participant.name || participant.identity}</span>
-                  {participant.isLocal && <span className="shrink-0 text-xs text-text-muted">(you)</span>}
-                </li>
-              ))}
-            </ul>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ControlDock
+        role={role}
+        isHost={isHost}
+        handsRaised={handsRaised}
+        onToggleChat={handleToggleChat}
+        onToggleParticipants={() => setParticipantsOpen((open) => !open)}
+        chatUnread={unreadCount}
+        onSendReaction={sendReaction}
+        onRaiseHand={raiseHand}
+      />
 
-      {deviceError && (
-        <div className="mx-2 mb-2 rounded-md border border-accent-danger/30 bg-accent-danger/10 px-3 py-2 text-xs text-accent-danger sm:mx-3">
-          {deviceError}
-        </div>
-      )}
-
-      <div className="flex shrink-0 flex-wrap items-center justify-center gap-3 border-t border-border bg-surface/95 px-3 py-3 backdrop-blur">
-        <TrackToggle
-          source={Track.Source.Microphone}
-          showIcon={false}
-          onDeviceError={(error) => setDeviceError(error.message)}
-          className={cn(
-            'flex h-12 w-12 items-center justify-center rounded-full border transition-colors',
-            isMicrophoneEnabled
-              ? 'border-border bg-surface-elevated text-text-primary hover:bg-surface'
-              : 'border-accent-danger/40 bg-accent-danger/10 text-accent-danger'
-          )}
-          aria-label={isMicrophoneEnabled ? 'Mute microphone' : 'Unmute microphone'}
-        >
-          {isMicrophoneEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
-        </TrackToggle>
-
-        <TrackToggle
-          source={Track.Source.Camera}
-          showIcon={false}
-          onDeviceError={(error) => setDeviceError(error.message)}
-          className={cn(
-            'flex h-12 w-12 items-center justify-center rounded-full border transition-colors',
-            isCameraEnabled
-              ? 'border-border bg-surface-elevated text-text-primary hover:bg-surface'
-              : 'border-accent-danger/40 bg-accent-danger/10 text-accent-danger'
-          )}
-          aria-label={isCameraEnabled ? 'Turn camera off' : 'Turn camera on'}
-        >
-          {isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
-        </TrackToggle>
-
-        <TrackToggle
-          source={Track.Source.ScreenShare}
-          showIcon={false}
-          onDeviceError={(error) => setDeviceError(error.message)}
-          className={cn(
-            'hidden h-12 w-12 items-center justify-center rounded-full border transition-colors sm:flex',
-            isScreenShareEnabled
-              ? 'border-accent-primary/40 bg-accent-primary/10 text-accent-primary'
-              : 'border-border bg-surface-elevated text-text-primary hover:bg-surface'
-          )}
-          aria-label={isScreenShareEnabled ? 'Stop screen share' : 'Share your screen'}
-        >
-          {isScreenShareEnabled ? <ScreenShareOff className="h-5 w-5" /> : <ScreenShare className="h-5 w-5" />}
-        </TrackToggle>
-
-        <button
-          type="button"
-          onClick={() => setParticipantListOpen((open) => !open)}
-          className={cn(
-            'flex h-12 w-12 items-center justify-center rounded-full border transition-colors',
-            participantListOpen
-              ? 'border-accent-primary/40 bg-accent-primary/10 text-accent-primary'
-              : 'border-border bg-surface-elevated text-text-primary hover:bg-surface'
-          )}
-          aria-label="Toggle participant list"
-        >
-          <Users className="h-5 w-5" />
-        </button>
-
-        <DisconnectButton
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-danger text-white transition-colors hover:bg-accent-danger/90"
-          aria-label="Leave meeting"
-        >
-          <PhoneOff className="h-5 w-5" />
-        </DisconnectButton>
-      </div>
+      <ChatSheet open={chatOpen} onClose={() => setChatOpen(false)} messages={messages} onSend={sendChat} />
+      <ParticipantsSheet
+        open={participantsOpen}
+        onClose={() => setParticipantsOpen(false)}
+        handsRaised={handsRaised}
+      />
 
       <p className="sr-only">Room: {roomName}</p>
     </div>
-  )
-}
-
-function TileFrame({ trackRef }: { trackRef: TrackReference }) {
-  const isScreenShare = trackRef.source === Track.Source.ScreenShare
-  return (
-    <ParticipantTile
-      trackRef={trackRef}
-      className={cn(
-        'aspect-video w-full overflow-hidden rounded-lg border border-border bg-surface-elevated',
-        isScreenShare && 'sm:col-span-2 lg:col-span-3'
-      )}
-    />
   )
 }
