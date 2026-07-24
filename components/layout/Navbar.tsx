@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { Menu, X, LayoutDashboard, LogOut } from "lucide-react"
+import { Menu, X, LayoutDashboard, LogOut, CalendarClock } from "lucide-react"
 import { JarvisButton } from "@/components/ui/jarvis-button"
 import { ThemeToggle } from "@/components/ui/ThemeToggle"
 import { NotificationBell } from "@/components/notifications/NotificationBell"
@@ -107,6 +107,13 @@ export function Navbar() {
                 </JarvisButton>
               </Link>
 
+              <Link href="/meetings">
+                <JarvisButton variant="secondary" size="sm">
+                  <CalendarClock className="h-4 w-4" />
+                  Meetings
+                </JarvisButton>
+              </Link>
+
               <NotificationBell isAuthed={isAuthed} />
 
               <button
@@ -150,6 +157,13 @@ export function Navbar() {
                         className="flex items-center gap-2 px-4 py-2.5 text-sm text-text-muted transition-colors hover:bg-surface-elevated hover:text-text-primary"
                       >
                         <LayoutDashboard className="h-4 w-4" /> Dashboard
+                      </Link>
+                      <Link
+                        href="/meetings"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-text-muted transition-colors hover:bg-surface-elevated hover:text-text-primary"
+                      >
+                        <CalendarClock className="h-4 w-4" /> Meetings
                       </Link>
                       <button
                         onClick={handleSignOut}
@@ -202,6 +216,11 @@ export function Navbar() {
                     <Link href={dashboardHref} onClick={() => setMobileOpen(false)}>
                       <JarvisButton variant="secondary" size="sm" className="w-full">
                         <LayoutDashboard className="h-4 w-4" /> Dashboard
+                      </JarvisButton>
+                    </Link>
+                    <Link href="/meetings" onClick={() => setMobileOpen(false)}>
+                      <JarvisButton variant="secondary" size="sm" className="w-full">
+                        <CalendarClock className="h-4 w-4" /> Meetings
                       </JarvisButton>
                     </Link>
                     <JarvisButton variant="danger" size="sm" className="w-full" onClick={handleSignOut}>
