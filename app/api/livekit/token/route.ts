@@ -9,19 +9,22 @@ import { createLiveKitToken } from '@/lib/livekit/tokens'
  * specific meeting.
  *
  * Authorisation is the entire point of this route: only the meeting's
- * organizer, its participant, or an admin may receive a token. Both the
- * room name and the caller's identity are derived server-side from the
- * authenticated session and the meetings row — never from anything the
- * client sends — so no caller can mint a token for an arbitrary room or
- * impersonate another identity.
+ * organizer, its (legacy 1:1) participant, an admin, or — for group
+ * meetings (migration 016) — a user with a live 'invited'/'accepted'
+ * meeting_invitations row may receive a token. Both the room name and the
+ * caller's identity are derived server-side from the authenticated session
+ * and the meetings row — never from anything the client sends — so no
+ * caller can mint a token for an arbitrary room or impersonate another
+ * identity.
  *
- * The meeting row is looked up via the service-role admin client, NOT the
- * cookie-scoped RLS client: the "Organizer and participant see meeting" RLS
- * policy already hides other people's rows entirely, which means an
- * RLS-scoped lookup for a real-but-not-mine meeting and a lookup for a
- * genuinely nonexistent meeting are indistinguishable (both come back
- * empty) — collapsing "not authorised" into "not found". The explicit
- * organizer/participant/admin check below is what actually enforces
+ * The meeting row (and the invitation check) is looked up via the
+ * service-role admin client, NOT the cookie-scoped RLS client: the
+ * "Organizer and participant see meeting" RLS policy already hides other
+ * people's rows entirely, which means an RLS-scoped lookup for a
+ * real-but-not-mine meeting and a lookup for a genuinely nonexistent meeting
+ * are indistinguishable (both come back empty) — collapsing "not
+ * authorised" into "not found". The explicit
+ * organizer/participant/admin/invitee check below is what actually enforces
  * authorisation instead, so it can return a real 403 for the former and a
  * real 404 for the latter.
  */
@@ -84,7 +87,24 @@ export async function POST(request: Request): Promise<NextResponse<TokenSuccessR
   const isParticipant = meeting.participant_id === user.id
   const isAdmin = profile?.role === 'admin'
 
+  // Group meetings (migration 016) have no single participant_id — attendees
+  // live in meeting_invitations instead. Only checked when none of the
+  // cheaper checks above already authorised the caller, since it's an extra
+  // round trip.
+  let isInvitee = false
   if (!isOrganizer && !isParticipant && !isAdmin) {
+    const { data: invitation } = await adminClient
+      .from('meeting_invitations')
+      .select('id')
+      .eq('meeting_id', meeting.id)
+      .eq('invitee_id', user.id)
+      .in('status', ['invited', 'accepted'])
+      .maybeSingle()
+
+    isInvitee = invitation !== null
+  }
+
+  if (!isOrganizer && !isParticipant && !isAdmin && !isInvitee) {
     return NextResponse.json({ error: 'You are not authorised to join this meeting' }, { status: 403 })
   }
 

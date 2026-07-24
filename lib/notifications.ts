@@ -25,6 +25,8 @@ export type NotificationType =
   | "assignment_created"
   | "demo_booked"
   | "payout_requested"
+  | "meeting_invite"
+  | "meeting_cancelled"
 
 export interface NotificationResult {
   ok: boolean

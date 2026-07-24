@@ -604,6 +604,46 @@ export interface Message {
   created_at: string | null;
 }
 
+/**
+ * public.meetings — scheduled video meetings. Originally strictly 1:1
+ * (organizer + participant); migration 016 relaxed `participant_id` to
+ * nullable and widened `context` to allow 'general' so a meeting can be a
+ * group room with no single primary participant (attendees then live in
+ * `meeting_invitations` instead). `is_group` is `not null default false`,
+ * so every row — including pre-migration 1:1 rows — always has a value.
+ */
+export interface Meeting {
+  id: string;
+  organizer_id: string;
+  participant_id: string | null;
+  context: 'tutoring' | 'gig' | 'general';
+  related_id: string | null;
+  title: string;
+  agenda: string | null;
+  scheduled_at: string;
+  duration_minutes: number | null;
+  room_url: string | null;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  is_group: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/**
+ * public.meeting_invitations — one row per invited user on a group meeting;
+ * the source of truth for who may join besides the organizer/legacy
+ * participant. See supabase-migrations/016-meeting-invitations.sql.
+ */
+export interface MeetingInvitation {
+  id: string;
+  meeting_id: string;
+  invitee_id: string;
+  invited_by: string;
+  status: 'invited' | 'accepted' | 'declined';
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 // ============================================================
 // INSERT HELPER TYPE
 // ============================================================
