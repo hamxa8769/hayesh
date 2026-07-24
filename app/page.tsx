@@ -1,8 +1,7 @@
 "use client"
 
 import { Navbar } from "@/components/layout/Navbar"
-import { ScrollWorld } from "@/components/three/ScrollWorld"
-import { Hero } from "@/components/marketing/Hero"
+import { HeroIsland } from "@/components/marketing/HeroIsland"
 import { StatStrip } from "@/components/marketing/StatStrip"
 import { TeacherShowcase } from "@/components/marketing/TeacherShowcase"
 import { SellerShowcase } from "@/components/marketing/SellerShowcase"
@@ -16,13 +15,13 @@ import { LandingFooter } from "@/components/marketing/LandingFooter"
 export default function HomePage() {
   return (
     <div className="min-h-screen">
-      {/* Exactly one WebGL canvas for the whole page — ScrollWorld replaces
-          the old static AuroraField hero shader with a single scroll-driven
-          particle field that runs behind every section below. */}
-      <ScrollWorld />
+      {/* Exactly one WebGL canvas for the whole page — the voxel showcase
+          island inside HeroIsland. It replaces the old ScrollWorld particle
+          field as the landing page's single, signature 3D moment; every
+          section below is quiet obsidian. */}
       <Navbar />
 
-      <Hero />
+      <HeroIsland />
       <StatStrip />
       <TeacherShowcase />
       <SellerShowcase />

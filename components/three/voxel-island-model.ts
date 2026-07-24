@@ -304,3 +304,59 @@ export function buildIslandModel({ childName, assignments, progress }: BuildIsla
     },
   }
 }
+
+// The three platform layers, used as building "subjects" so the showcase
+// island grows one landmark per layer. Alphabetical order here matches the
+// sort inside buildIslandModel, so the buildings resolve in this same order.
+export const SHOWCASE_LANDMARKS = ['HayeshAI Studio', 'Marketplace', 'Teachers'] as const
+
+/**
+ * Builds the curated landing-page hero island. Rather than a second placement
+ * code path, it synthesizes a fixed, deterministic dataset and feeds it through
+ * buildIslandModel — so the showcase inherits the exact same collision-free
+ * layout, radius growth and decoration logic as a real child's island. The
+ * result is a full-size (MAX_RADIUS) island bearing one building per platform
+ * layer, a small grove of graded "trees", a few saplings/seeds and decorations.
+ *
+ * Fully deterministic: identical every render/hydration, no Math.random().
+ */
+export function buildShowcaseModel(): IslandModel {
+  const subjects = SHOWCASE_LANDMARKS
+  const assignments: IslandAssignmentInput[] = []
+
+  // A grove of graded work (trees), spread evenly across the three layers.
+  for (let i = 0; i < 18; i += 1) {
+    assignments.push({
+      id: `showcase-graded-${i}`,
+      status: 'graded',
+      subject: subjects[i % subjects.length],
+      grade: 'A',
+    })
+  }
+  // A handful of in-progress saplings and freshly-planted seeds for variety.
+  for (let i = 0; i < 5; i += 1) {
+    assignments.push({
+      id: `showcase-submitted-${i}`,
+      status: 'submitted',
+      subject: subjects[i % subjects.length],
+      grade: null,
+    })
+  }
+  for (let i = 0; i < 3; i += 1) {
+    assignments.push({
+      id: `showcase-assigned-${i}`,
+      status: 'assigned',
+      subject: subjects[i % subjects.length],
+      grade: null,
+    })
+  }
+
+  const progress: IslandProgressInput[] = subjects.map((subject) => ({
+    subject,
+    attendance_pct: 96,
+    sessions_held: 24,
+    sessions_total: 25,
+  }))
+
+  return buildIslandModel({ childName: 'Hayesh', assignments, progress })
+}
