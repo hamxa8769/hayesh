@@ -1,7 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { LiveKitRoom, RoomAudioRenderer, useConnectionState, useRoomContext } from '@livekit/components-react'
+import {
+  LiveKitRoom,
+  RoomAudioRenderer,
+  useConnectionState,
+  useLocalParticipant,
+  useRoomContext,
+} from '@livekit/components-react'
 import { ConnectionState } from 'livekit-client'
 import { X, WifiOff } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -10,6 +16,7 @@ import { ControlDock } from '@/components/video/ControlDock'
 import { ChatSheet } from '@/components/video/ChatSheet'
 import { ParticipantsSheet } from '@/components/video/ParticipantsSheet'
 import { ReactionsOverlay } from '@/components/video/ReactionsOverlay'
+import { Lobby } from '@/components/video/Lobby'
 import { useRoomMessaging } from '@/components/video/room-messaging'
 
 /**
@@ -30,6 +37,12 @@ export interface VideoRoomProps {
   role?: string | null
   /** Whether the local joiner is this meeting's host (organizer). */
   isHost?: boolean
+  /** Whether the local joiner is already admitted into the room (i.e. not
+   *  stuck in the meeting's waiting room). Defaults to true so meetings
+   *  without a waiting room behave exactly as before. When false, the
+   *  joiner connects but must not attempt to publish audio/video until the
+   *  host admits them — see the gate below. */
+  admitted?: boolean
   initialAudioEnabled: boolean
   initialVideoEnabled: boolean
   audioDeviceId?: string
@@ -43,6 +56,7 @@ export function VideoRoom({
   roomName,
   role = null,
   isHost = false,
+  admitted = true,
   initialAudioEnabled,
   initialVideoEnabled,
   audioDeviceId,
@@ -93,22 +107,75 @@ export function VideoRoom({
         token={token}
         connect
         options={{ adaptiveStream: true, dynacast: true }}
-        audio={initialAudioEnabled ? (audioDeviceId ? { deviceId: audioDeviceId } : true) : false}
-        video={initialVideoEnabled ? (videoDeviceId ? { deviceId: videoDeviceId } : true) : false}
+        // A lobby attendee (admitted === false) must never attempt to
+        // publish — canPublish is false on their token, so trying would just
+        // surface a publish error. Force both off regardless of the
+        // caller's requested initial device state; once admitted, the gate
+        // below swaps in RoomInterior which is unaffected by this (device
+        // enable/disable from here on is handled by ControlDock/TrackToggle).
+        audio={admitted ? (initialAudioEnabled ? (audioDeviceId ? { deviceId: audioDeviceId } : true) : false) : false}
+        video={admitted ? (initialVideoEnabled ? (videoDeviceId ? { deviceId: videoDeviceId } : true) : false) : false}
         onDisconnected={() => onLeave()}
         onError={(error) => setConnectionError(error.message)}
         className="flex min-h-[60vh] w-full max-w-full flex-1 flex-col"
       >
         <RoomAudioRenderer />
-        <RoomInterior
+        <RoomGate
           roomName={roomName}
           role={role}
           isHost={isHost}
+          admitted={admitted}
           connectionError={connectionError}
           onDismissError={() => setConnectionError(null)}
         />
       </LiveKitRoom>
     </div>
+  )
+}
+
+interface RoomGateProps {
+  roomName: string
+  role: string | null
+  isHost: boolean
+  /** The joiner's admission state as of the token fetch — see VideoRoomProps.admitted. */
+  admitted: boolean
+  connectionError: string | null
+  onDismissError: () => void
+}
+
+/**
+ * Waiting-room gate: renders <Lobby /> until the local participant may
+ * subscribe, then swaps in the normal <RoomInterior />. `admitted` (the
+ * token-time snapshot) short-circuits the check for the common case where
+ * there's no waiting room at all. Once actually granted, `useLocalParticipant`
+ * re-renders on LiveKit's ParticipantPermissionsChanged event, so this
+ * updates live with no polling — the permission transition only ever goes
+ * not-admitted -> admitted for a given join, never back.
+ */
+function RoomGate({ roomName, role, isHost, admitted, connectionError, onDismissError }: RoomGateProps) {
+  const { localParticipant } = useLocalParticipant()
+  // Start from the token-time snapshot (authoritative and already correct
+  // for the overwhelmingly common non-waiting-room case), then flip to
+  // admitted once LiveKit confirms canSubscribe permission was actually
+  // granted. Checking `=== true` (rather than defaulting undefined to
+  // admitted) matters here specifically because `admitted` may start false:
+  // permissions can be momentarily undefined right after connecting, and
+  // treating that as "admitted" would flash the call UI before the host has
+  // actually let this participant in.
+  const isAdmitted = admitted || localParticipant.permissions?.canSubscribe === true
+
+  if (!isAdmitted) {
+    return <Lobby />
+  }
+
+  return (
+    <RoomInterior
+      roomName={roomName}
+      role={role}
+      isHost={isHost}
+      connectionError={connectionError}
+      onDismissError={onDismissError}
+    />
   )
 }
 

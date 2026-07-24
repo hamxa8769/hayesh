@@ -29,6 +29,7 @@ const createMeetingSchema = z.object({
     .refine((v) => new Date(v).getTime() > Date.now(), { message: "Start time must be in the future" }),
   duration_minutes: z.coerce.number().int().min(15).max(180),
   context: z.enum(["general", "tutoring", "gig"]),
+  waiting_room: z.boolean(),
 })
 
 // z.coerce.number() makes the schema's INPUT type differ from its OUTPUT type
@@ -50,6 +51,7 @@ const emptyValues: CreateMeetingInput = {
   scheduled_at: "",
   duration_minutes: 30,
   context: "general",
+  waiting_room: false,
 }
 
 /** Modal for POST /api/meetings — copies the shell/focus-trap/escape-close pattern from RequestFormModal. */
@@ -154,6 +156,7 @@ export function CreateMeetingModal({ open, onClose, onCreated }: CreateMeetingMo
           duration_minutes: values.duration_minutes,
           context: values.context,
           invitee_ids: invitees.map((u) => u.id),
+          waiting_room: values.waiting_room,
         }),
       })
       const json = (await res.json()) as { error?: string }
@@ -286,6 +289,21 @@ export function CreateMeetingModal({ open, onClose, onCreated }: CreateMeetingMo
                     {inviteesError}
                   </p>
                 )}
+              </div>
+
+              <div className="flex items-start gap-3 rounded-lg border border-border bg-surface-elevated px-3 py-2.5">
+                <input
+                  id="meeting-waiting-room"
+                  type="checkbox"
+                  {...register("waiting_room")}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-border bg-surface text-accent-primary focus:ring-2 focus:ring-accent-primary/50"
+                />
+                <div className="min-w-0">
+                  <Label htmlFor="meeting-waiting-room" className="cursor-pointer">
+                    Waiting room
+                  </Label>
+                  <p className="text-xs text-text-muted">Attendees wait until you admit them</p>
+                </div>
               </div>
 
               {submitError && (

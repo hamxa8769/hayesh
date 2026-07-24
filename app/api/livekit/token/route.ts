@@ -43,6 +43,10 @@ interface TokenSuccessResponse {
    *  OTHER participants can see each joiner's role. */
   role: string | null
   isHost: boolean
+  /** Whether this joiner is immediately admitted into the room (can publish
+   *  and subscribe) or must wait in the lobby for the host to admit them
+   *  (meeting.waiting_room is true and this joiner is not the host/an admin). */
+  admitted: boolean
 }
 
 interface TokenErrorResponse {
@@ -75,7 +79,7 @@ export async function POST(request: Request): Promise<NextResponse<TokenSuccessR
 
   const { data: meeting, error: meetingError } = await adminClient
     .from('meetings')
-    .select('id, organizer_id, participant_id, room_url, status')
+    .select('id, organizer_id, participant_id, room_url, status, waiting_room')
     .eq('id', parsed.data.meeting_id)
     .maybeSingle()
 
@@ -137,20 +141,27 @@ export async function POST(request: Request): Promise<NextResponse<TokenSuccessR
   const role = profile?.role ?? null
   const isHost = isOrganizer
 
+  // A host/admin is always admitted immediately. Everyone else is admitted
+  // immediately too UNLESS this meeting has an active waiting room — a null
+  // waiting_room (e.g. a row inserted before migration 018 ran) is treated as
+  // false so this never accidentally locks out an existing meeting.
+  const admitted = isOrganizer || isAdmin || !meeting.waiting_room
+
   let token: string
   try {
     token = await createLiveKitToken({
       roomName,
       identity: user.id,
       name: profile?.full_name || undefined,
-      canPublish: true,
+      canPublish: admitted,
+      canSubscribe: admitted,
       // Surfaced to every participant as participant.metadata for role badges.
-      metadata: JSON.stringify({ role, isHost }),
+      metadata: JSON.stringify({ role, isHost, admitted }),
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to create video token'
     return NextResponse.json({ error: message }, { status: 500 })
   }
 
-  return NextResponse.json({ token, url: livekitUrl, roomName, role, isHost })
+  return NextResponse.json({ token, url: livekitUrl, roomName, role, isHost, admitted })
 }

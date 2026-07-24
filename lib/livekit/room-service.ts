@@ -167,3 +167,24 @@ export async function muteParticipantAudio(roomName: string, identity: string): 
 export async function removeParticipant(roomName: string, identity: string): Promise<void> {
   await callRoomService('RemoveParticipant', { room: roomName, identity }, roomName)
 }
+
+export interface ParticipantPermissionUpdate {
+  canSubscribe: boolean
+  canPublish: boolean
+  canPublishData: boolean
+}
+
+/**
+ * Admits a waiting-room participant: grants `identity` in `roomName` the
+ * given publish/subscribe/data permissions via LiveKit's UpdateParticipant.
+ * The participant's client detects the permission change itself
+ * (ParticipantPermissionsChanged on its own local participant) and leaves
+ * the lobby — see components/video/VideoRoom.tsx.
+ */
+export async function updateParticipantPermission(
+  roomName: string,
+  identity: string,
+  permission: ParticipantPermissionUpdate
+): Promise<void> {
+  await callRoomService('UpdateParticipant', { room: roomName, identity, permission }, roomName)
+}

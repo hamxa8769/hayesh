@@ -22,7 +22,7 @@ interface LiveKitVideoGrant {
   room: string
   roomJoin: true
   canPublish: boolean
-  canSubscribe: true
+  canSubscribe: boolean
   canPublishData: true
 }
 
@@ -49,6 +49,12 @@ export interface CreateLiveKitTokenParams {
   name?: string
   /** Whether this identity may publish audio/video/data. Defaults to true (both organizer and participant can publish). */
   canPublish?: boolean
+  /** Whether this identity may subscribe to (see/hear) other participants'
+   *  tracks. Defaults to true. Set to false for an attendee waiting in a
+   *  meeting's waiting room — they connect to the room but can neither
+   *  publish nor subscribe until the host admits them (grants both via
+   *  LiveKit UpdateParticipant, see lib/livekit/room-service.ts). */
+  canSubscribe?: boolean
   /** Opaque JSON string exposed to every participant as `participant.metadata`
    *  (e.g. the joiner's role + host flag for role-based in-room UI). Always
    *  built server-side from the session — never trust a client-supplied value. */
@@ -71,6 +77,7 @@ export async function createLiveKitToken({
   identity,
   name,
   canPublish = true,
+  canSubscribe = true,
   metadata,
 }: CreateLiveKitTokenParams): Promise<string> {
   const apiKey = process.env.LIVEKIT_API_KEY
@@ -104,7 +111,7 @@ export async function createLiveKitToken({
       room: roomName,
       roomJoin: true,
       canPublish,
-      canSubscribe: true,
+      canSubscribe,
       canPublishData: true,
     },
     ...(metadata ? { metadata } : {}),

@@ -625,6 +625,9 @@ export interface Meeting {
   room_url: string | null;
   status: 'scheduled' | 'completed' | 'cancelled';
   is_group: boolean;
+  /** Opt-in waiting room (migration 018). `not null default false`, so every
+   *  row — including pre-migration rows — always has a value. */
+  waiting_room: boolean;
   created_at: string | null;
   updated_at: string | null;
 }

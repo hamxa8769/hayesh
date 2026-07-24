@@ -79,6 +79,9 @@ const createMeetingSchema = z.object({
   invitee_ids: z.array(z.string().uuid('Invalid invitee id')).min(1).max(20).optional(),
   // Legacy 1:1 field, still accepted so existing callers keep working.
   participant_id: z.string().uuid('Invalid participant id').optional(),
+  // Opt-in waiting room (migration 018). Defaults to false so every existing
+  // caller that doesn't send this field keeps today's behaviour.
+  waiting_room: z.boolean().optional().default(false),
 })
 
 const patchMeetingSchema = z
@@ -284,6 +287,7 @@ export async function POST(request: Request): Promise<
       duration_minutes: values.duration_minutes,
       room_url: roomName,
       status: 'scheduled',
+      waiting_room: values.waiting_room,
     })
     .select('*')
     .maybeSingle()

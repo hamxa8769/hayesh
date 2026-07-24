@@ -42,6 +42,10 @@ interface CallInfo {
   roomName: string
   role: string | null
   isHost: boolean
+  /** Whether the token route admitted this joiner immediately, or they must
+   *  wait in the meeting's waiting room. Absent from the response = admitted
+   *  (keeps older/non-waiting-room responses working unchanged). */
+  admitted: boolean
 }
 
 // How early a caller may enter the device-check / join screen before the
@@ -241,6 +245,7 @@ export function PreJoin({ meetingId, title, scheduledAt, durationMinutes, otherP
         roomName?: string
         role?: string | null
         isHost?: boolean
+        admitted?: boolean
         error?: string
       } = await response.json()
       if (!response.ok || !json.token || !json.url || !json.roomName) {
@@ -253,6 +258,7 @@ export function PreJoin({ meetingId, title, scheduledAt, durationMinutes, otherP
         roomName: json.roomName,
         role: json.role ?? null,
         isHost: json.isHost ?? false,
+        admitted: json.admitted ?? true,
       })
       setPhase('in-call')
     } catch (error: unknown) {
@@ -280,6 +286,7 @@ export function PreJoin({ meetingId, title, scheduledAt, durationMinutes, otherP
         roomName={callInfo.roomName}
         role={callInfo.role}
         isHost={callInfo.isHost}
+        admitted={callInfo.admitted}
         initialAudioEnabled={micEnabled}
         initialVideoEnabled={camEnabled && permissionState !== 'partial'}
         audioDeviceId={selectedAudioId}
