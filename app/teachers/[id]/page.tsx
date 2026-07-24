@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { CalendarClock, ArrowLeft, Award, Briefcase, GraduationCap } from "lucide-react"
+import { CalendarClock, ArrowLeft, Award, Briefcase, GraduationCap, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
@@ -46,6 +46,66 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+interface StatTile {
+  label: string
+  value: string
+}
+
+function buildStatTiles(teacher: TeacherWithEndorsement): StatTile[] {
+  const tiles: StatTile[] = []
+  if (teacher.total_students) tiles.push({ label: "Students Taught", value: teacher.total_students.toLocaleString() })
+  if (teacher.total_sessions) tiles.push({ label: "Sessions", value: teacher.total_sessions.toLocaleString() })
+  if (teacher.average_rating) tiles.push({ label: "Rating", value: teacher.average_rating.toFixed(1) })
+  if (teacher.total_reviews) tiles.push({ label: "Reviews", value: teacher.total_reviews.toLocaleString() })
+  return tiles
+}
+
+/** Allowlisted video hosts — never build an iframe src from an unvalidated URL. */
+function getYouTubeEmbedUrl(url: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  const host = parsed.hostname.replace(/^www\.|^m\./, "")
+
+  if (host === "youtu.be") {
+    const id = parsed.pathname.slice(1)
+    return id ? `https://www.youtube.com/embed/${id}` : null
+  }
+  if (host === "youtube.com") {
+    if (parsed.pathname === "/watch") {
+      const id = parsed.searchParams.get("v")
+      return id ? `https://www.youtube.com/embed/${id}` : null
+    }
+    if (parsed.pathname.startsWith("/embed/")) return url
+    if (parsed.pathname.startsWith("/shorts/")) {
+      const id = parsed.pathname.split("/")[2]
+      return id ? `https://www.youtube.com/embed/${id}` : null
+    }
+  }
+  return null
+}
+
+function getVimeoEmbedUrl(url: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  const host = parsed.hostname.replace(/^www\./, "")
+  if (host !== "vimeo.com" && host !== "player.vimeo.com") return null
+
+  const match = parsed.pathname.match(/(\d+)/)
+  return match ? `https://player.vimeo.com/video/${match[1]}` : null
+}
+
+function isDirectVideoFile(url: string): boolean {
+  return /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url)
+}
+
 export default function TeacherDetailPage() {
   const { id } = useParams()
   const router = useRouter()
@@ -87,6 +147,14 @@ export default function TeacherDetailPage() {
   const experience = teacher.experience || []
   const availability = teacher.availability || {}
   const hasAvailability = WEEKDAYS.some((d) => (availability[d.key]?.length ?? 0) > 0)
+  const statTiles = buildStatTiles(teacher)
+  const translationLanguages = teacher.translation_languages || []
+
+  const introVideoUrl = teacher.intro_video_url
+  const introIsDirectFile = introVideoUrl ? isDirectVideoFile(introVideoUrl) : false
+  const introEmbedUrl = introVideoUrl && !introIsDirectFile
+    ? getYouTubeEmbedUrl(introVideoUrl) || getVimeoEmbedUrl(introVideoUrl)
+    : null
 
   return (
     <div className="min-h-screen bg-background">
@@ -139,6 +207,19 @@ export default function TeacherDetailPage() {
                   )}
                   {teacher.translation_enabled && <Badge variant="aurora">✦ Multilingual</Badge>}
                 </div>
+
+                {teacher.translation_enabled && translationLanguages.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {translationLanguages.map((lang) => (
+                      <span
+                        key={lang}
+                        className="rounded-full border border-accent-primary/30 bg-accent-primary/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-accent-primary"
+                      >
+                        {lang}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -153,6 +234,53 @@ export default function TeacherDetailPage() {
             </Button>
           </div>
         </Reveal>
+
+        {/* Stats strip */}
+        {statTiles.length > 0 && (
+          <Reveal delay={0.03} className="mt-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {statTiles.map((tile) => (
+                <div key={tile.label} className="rounded-lg border border-border bg-surface p-4 text-center">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">{tile.label}</p>
+                  <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-text-primary">{tile.value}</p>
+                </div>
+              ))}
+            </div>
+          </Reveal>
+        )}
+
+        {/* Intro video */}
+        {introVideoUrl && (
+          <Reveal delay={0.05} className="mt-8">
+            <span className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.12em] text-text-muted">
+              <Video className="h-3.5 w-3.5" /> Intro Video
+            </span>
+            <div className="mt-3 aspect-video overflow-hidden rounded-lg border border-border bg-surface">
+              {introIsDirectFile ? (
+                <video controls className="h-full w-full bg-black object-contain" src={introVideoUrl}>
+                  Your browser does not support the video tag.
+                </video>
+              ) : introEmbedUrl ? (
+                <iframe
+                  src={introEmbedUrl}
+                  title={`${teacher.display_name} intro video`}
+                  className="h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : (
+                <a
+                  href={introVideoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-full w-full items-center justify-center text-sm text-accent-secondary hover:underline"
+                >
+                  Watch intro video
+                </a>
+              )}
+            </div>
+          </Reveal>
+        )}
 
         {/* Subjects */}
         {subs.length > 0 && (
