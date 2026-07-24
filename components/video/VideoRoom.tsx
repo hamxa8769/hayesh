@@ -131,6 +131,11 @@ function getRoleBadge(role: string | null, isHost: boolean): string | null {
 
 function RoomInterior({ roomName, role, isHost, connectionError, onDismissError }: RoomInteriorProps) {
   const roleBadge = getRoleBadge(role, isHost)
+  // Moderation (mute/remove/mute-all) is available to this meeting's host
+  // (organizer) and to platform admins observing the room — never to a
+  // plain participant, regardless of what the client believes; the API
+  // route re-derives and re-checks this same authorisation server-side.
+  const canModerate = isHost || role === 'admin'
   const room = useRoomContext()
   const connectionState = useConnectionState(room)
   const [chatOpen, setChatOpen] = useState(false)
@@ -217,6 +222,8 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
         chatUnread={unreadCount}
         onSendReaction={sendReaction}
         onRaiseHand={raiseHand}
+        canModerate={canModerate}
+        roomName={roomName}
       />
 
       <ChatSheet open={chatOpen} onClose={() => setChatOpen(false)} messages={messages} onSend={sendChat} />
@@ -224,6 +231,8 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
         open={participantsOpen}
         onClose={() => setParticipantsOpen(false)}
         handsRaised={handsRaised}
+        canModerate={canModerate}
+        roomName={roomName}
       />
 
       <p className="sr-only">Room: {roomName}</p>

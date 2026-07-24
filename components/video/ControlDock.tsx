@@ -31,12 +31,17 @@ export interface ControlDockProps {
   chatUnread: number
   onSendReaction: (emoji: string) => void
   onRaiseHand: (raised: boolean) => void
+  /** Whether the local participant may moderate this room (host or admin). */
+  canModerate: boolean
+  /** The LiveKit room name — required to target moderation actions server-side. */
+  roomName: string
 }
 
 /** Fixed bottom control bar: mic/camera/screen-share toggles, reactions,
  *  raise-hand, chat, participants, and a visually separated red Leave
- *  button. `role`/`isHost` are threaded through for the host-only controls
- *  a later phase will add here. */
+ *  button. When `canModerate` is true (host or admin), a "Mute all" button
+ *  is also shown, kept visually distinct from Leave since it affects
+ *  everyone else in the room. */
 export function ControlDock({
   handsRaised,
   onToggleChat,
@@ -44,13 +49,37 @@ export function ControlDock({
   chatUnread,
   onSendReaction,
   onRaiseHand,
+  canModerate,
+  roomName,
 }: ControlDockProps) {
   const { isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled, localParticipant } = useLocalParticipant()
   const [deviceError, setDeviceError] = useState<string | null>(null)
   const [reactionsOpen, setReactionsOpen] = useState(false)
+  const [muteAllPending, setMuteAllPending] = useState(false)
   const prefersReducedMotion = useReducedMotion()
 
   const isHandRaised = Boolean(handsRaised[localParticipant.identity])
+
+  const handleMuteAll = async () => {
+    if (!window.confirm('Mute every other participant in this meeting?')) return
+
+    setMuteAllPending(true)
+    try {
+      const response = await fetch('/api/livekit/moderate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room: roomName, action: 'mute_all' }),
+      })
+      const data: { ok?: true; error?: string } = await response.json()
+      if (!response.ok || !data.ok) {
+        setDeviceError(data.error ?? 'Failed to mute all participants')
+      }
+    } catch {
+      setDeviceError('Network error — could not mute all participants')
+    } finally {
+      setMuteAllPending(false)
+    }
+  }
 
   return (
     <div className="relative shrink-0 border-t border-border bg-surface/95 px-3 py-3 backdrop-blur">
@@ -187,6 +216,18 @@ export function ControlDock({
             <Users className="h-5 w-5" />
           </button>
         </div>
+
+        {canModerate && (
+          <button
+            type="button"
+            onClick={handleMuteAll}
+            disabled={muteAllPending}
+            aria-label="Mute all participants"
+            className="ml-2 flex h-12 items-center justify-center rounded-full border border-accent-warning/40 bg-accent-warning/10 px-4 font-mono text-xs uppercase tracking-[0.08em] text-accent-warning transition-colors hover:bg-accent-warning/20 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {muteAllPending ? 'Muting…' : 'Mute all'}
+          </button>
+        )}
 
         <DisconnectButton
           className="ml-2 flex h-12 w-12 items-center justify-center rounded-full bg-accent-danger text-white transition-colors hover:bg-accent-danger/90"
