@@ -15,6 +15,7 @@ import {
   type TeacherNote,
 } from "@/components/parent/ProgressFeed"
 import { AssignmentSubmitModal } from "@/components/parent/AssignmentSubmitModal"
+import { ProgressIsland } from "@/components/parent/ProgressIsland"
 import { cn } from "@/lib/utils/cn"
 import type { Student } from "@/components/parent/student-schema"
 import type { StudentProgress } from "@/types/database"
@@ -299,6 +300,9 @@ export default function ParentProgressPage() {
     )
   }
 
+  const selectedStudent = students.find((s) => s.id === selectedStudentId)
+  const showProgressIsland = selectedStudent !== undefined && !assignments.loading && !progress.loading
+
   return (
     <div className="space-y-6">
       <motion.div
@@ -330,6 +334,24 @@ export default function ParentProgressPage() {
             </button>
           ))}
         </div>
+      )}
+
+      {showProgressIsland && selectedStudent && (
+        <ProgressIsland
+          childName={selectedStudent.full_name}
+          assignments={assignments.data.map((a) => ({
+            id: a.id,
+            status: a.status,
+            subject: a.subject,
+            grade: a.grade,
+          }))}
+          progress={progress.data.map((p) => ({
+            subject: p.subject,
+            attendance_pct: p.attendance_pct,
+            sessions_held: p.sessions_held,
+            sessions_total: p.sessions_total,
+          }))}
+        />
       )}
 
       <ProgressFeed
