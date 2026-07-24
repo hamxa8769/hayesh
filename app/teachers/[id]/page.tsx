@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { CalendarClock, ArrowLeft, Briefcase, GraduationCap } from "lucide-react"
+import { CalendarClock, ArrowLeft, Award, Briefcase, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
@@ -12,7 +12,15 @@ import { DemoBookingModal } from "@/components/teacher-public/DemoBookingModal"
 import { RatingStars } from "@/components/teacher-public/RatingStars"
 import { ReviewList, type ReviewListSummary } from "@/components/teacher-public/ReviewList"
 import { ReviewForm } from "@/components/teacher-public/ReviewForm"
+import { TestimonialList } from "@/components/teacher-public/TestimonialList"
 import type { Teacher } from "@/types/database"
+
+/**
+ * public.teachers.endorsed (migration 015 — the "Hayesh Verified" badge) is
+ * not yet in the shared Teacher type in types/database.ts. Extend locally
+ * rather than editing that shared file, which is out of this task's scope.
+ */
+type TeacherWithEndorsement = Teacher & { endorsed: boolean | null }
 
 const WEEKDAYS: Array<{ key: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun"; label: string }> = [
   { key: "mon", label: "Mon" },
@@ -42,7 +50,7 @@ export default function TeacherDetailPage() {
   const { id } = useParams()
   const router = useRouter()
   const teacherId = String(id)
-  const [teacher, setTeacher] = useState<Teacher | null>(null)
+  const [teacher, setTeacher] = useState<TeacherWithEndorsement | null>(null)
   const [loading, setLoading] = useState(true)
   const [demoModalOpen, setDemoModalOpen] = useState(false)
   const [reviewSummary, setReviewSummary] = useState<ReviewListSummary | null>(null)
@@ -52,7 +60,7 @@ export default function TeacherDetailPage() {
     const load = async () => {
       const supabase = createClient()
       const { data } = await supabase.from("teachers").select("*").eq("id", teacherId).maybeSingle()
-      setTeacher(data as Teacher | null)
+      setTeacher(data as TeacherWithEndorsement | null)
       setLoading(false)
     }
     load()
@@ -109,9 +117,17 @@ export default function TeacherDetailPage() {
               )}
 
               <div className="min-w-0 flex-1">
-                <h1 className="text-balance font-display text-3xl font-semibold tracking-tight text-text-primary">
-                  {teacher.display_name}
-                </h1>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="text-balance font-display text-3xl font-semibold tracking-tight text-text-primary">
+                    {teacher.display_name}
+                  </h1>
+                  {teacher.endorsed && (
+                    <Badge variant="aurora" className="gap-1">
+                      <Award className="h-3 w-3" aria-hidden="true" />
+                      Hayesh Verified
+                    </Badge>
+                  )}
+                </div>
                 <p className="mt-1 text-text-muted">{teacher.tagline || "Verified teacher"}</p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -249,6 +265,14 @@ export default function TeacherDetailPage() {
           <div className="mt-4">
             <ReviewForm teacherId={teacherId} onSubmitted={() => setReviewRefreshKey((k) => k + 1)} />
           </div>
+        </Reveal>
+
+        {/* Testimonials — editorial, admin-curated quotes. Deliberately a
+            separate section from Reviews above so the two are never
+            confused: the component (including its own heading) renders
+            nothing if there are no published testimonials for this teacher. */}
+        <Reveal delay={0.27} className="mt-8">
+          <TestimonialList subjectId={teacherId} subjectType="teacher" />
         </Reveal>
 
         {/* Availability */}

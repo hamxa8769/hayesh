@@ -17,7 +17,10 @@ export default function AIServicesPage() {
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
-      const { data } = await supabase.from("ai_services").select("*").eq("is_active", true).order("created_at", { ascending: false })
+      // ai_services has a `status` enum ('active'|'paused'|'draft'), not an
+      // is_active boolean — querying the wrong column returned nothing, which is
+      // why HayeshAI Studio showed empty despite 10 seeded services.
+      const { data } = await supabase.from("ai_services").select("*").eq("status", "active").order("created_at", { ascending: false })
       setServices((data || []) as AIService[])
       setLoading(false)
     }

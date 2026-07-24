@@ -48,6 +48,16 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
+
+  // Signed-out visitors get the marketing landing page at "/". A signed-in user
+  // gets the /explore marketplace instead — their role dashboard is still one
+  // click away via the navbar. /explore is not a protected route, so this
+  // cannot loop.
+  if (request.nextUrl.pathname === "/") {
+    if (user) return NextResponse.redirect(new URL("/explore", request.url))
+    return response
+  }
+
   const requiredRole = getRole(request.nextUrl.pathname)
 
   if (!requiredRole) return response
@@ -93,5 +103,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/teacher/:path*', '/parent/:path*', '/seller/:path*', '/buyer/:path*'],
+  // "/" is matched so a signed-in visitor can be sent to /explore.
+  matcher: ['/', '/admin/:path*', '/teacher/:path*', '/parent/:path*', '/seller/:path*', '/buyer/:path*'],
 }

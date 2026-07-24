@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils/cn"
 import type { UserRole } from "@/types/database"
 
 const links = [
+  { href: "/explore", label: "Explore" },
   { href: "/teachers", label: "Teachers" },
   { href: "/marketplace", label: "Marketplace" },
   { href: "/ai-services", label: "AI Services" },

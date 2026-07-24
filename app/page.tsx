@@ -6,6 +6,7 @@ import { Hero } from "@/components/marketing/Hero"
 import { StatStrip } from "@/components/marketing/StatStrip"
 import { TeacherShowcase } from "@/components/marketing/TeacherShowcase"
 import { SellerShowcase } from "@/components/marketing/SellerShowcase"
+import { AIStudioSection } from "@/components/marketing/AIStudioSection"
 import { PricingModel } from "@/components/marketing/PricingModel"
 import { HowItWorks } from "@/components/marketing/HowItWorks"
 import { CategoryStrip } from "@/components/marketing/CategoryStrip"
@@ -25,6 +26,7 @@ export default function HomePage() {
       <StatStrip />
       <TeacherShowcase />
       <SellerShowcase />
+      <AIStudioSection />
       <PricingModel />
       <HowItWorks />
       <CategoryStrip />

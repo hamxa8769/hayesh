@@ -82,7 +82,8 @@ export function TicketThread({ ticketId }: TicketThreadProps) {
         supabase.auth.getUser(),
         supabase
           .from("support_tickets")
-          .select("*, profiles(full_name, email, role)")
+          // Two FKs to profiles (user_id, assigned_admin_id) — pin to the requester.
+          .select("*, profiles!user_id(full_name, email, role)")
           .eq("id", ticketId)
           .maybeSingle(),
         supabase

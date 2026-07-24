@@ -295,6 +295,16 @@ export function PreJoin({ meetingId, title, scheduledAt, durationMinutes, otherP
           &ldquo;{title}&rdquo; with {otherPartyName} starts {formatDateTime(scheduledAt)}
         </p>
         <p className="mt-1 text-xs text-text-disabled">You can join up to 10 minutes early.</p>
+        {/*
+          The countdown is informational only — it must never block joining.
+          A teacher/seller/admin may need to open the room right now to set it
+          up or hold an ad-hoc meeting, so anyone with access to this page can
+          enter immediately. Authorization is already enforced server-side by
+          the token route; this button only skips the visual wait.
+        */}
+        <Button type="button" variant="outline" className="mt-4 w-full" onClick={() => setPhase('setup')}>
+          Join now
+        </Button>
       </JarvisCard>
     )
   }

@@ -70,7 +70,10 @@ export function TicketList() {
       const supabase = createClient()
       const { data, error: fetchError } = await supabase
         .from("support_tickets")
-        .select("*, profiles(full_name, email, role)")
+        // Disambiguate: support_tickets has TWO FKs to profiles (user_id and
+        // assigned_admin_id), so a bare profiles(...) embed is rejected as
+        // ambiguous. Pin it to the requester (user_id).
+        .select("*, profiles!user_id(full_name, email, role)")
         .order("created_at", { ascending: false })
 
       if (fetchError) throw new Error(fetchError.message)
