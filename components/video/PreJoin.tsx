@@ -40,6 +40,8 @@ interface CallInfo {
   token: string
   url: string
   roomName: string
+  role: string | null
+  isHost: boolean
 }
 
 // How early a caller may enter the device-check / join screen before the
@@ -233,12 +235,25 @@ export function PreJoin({ meetingId, title, scheduledAt, durationMinutes, otherP
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ meeting_id: meetingId }),
       })
-      const json: { token?: string; url?: string; roomName?: string; error?: string } = await response.json()
+      const json: {
+        token?: string
+        url?: string
+        roomName?: string
+        role?: string | null
+        isHost?: boolean
+        error?: string
+      } = await response.json()
       if (!response.ok || !json.token || !json.url || !json.roomName) {
         throw new Error(json.error || 'Failed to join the meeting')
       }
       stopPreview()
-      setCallInfo({ token: json.token, url: json.url, roomName: json.roomName })
+      setCallInfo({
+        token: json.token,
+        url: json.url,
+        roomName: json.roomName,
+        role: json.role ?? null,
+        isHost: json.isHost ?? false,
+      })
       setPhase('in-call')
     } catch (error: unknown) {
       setJoinError(getErrorMessage(error))
@@ -263,6 +278,8 @@ export function PreJoin({ meetingId, title, scheduledAt, durationMinutes, otherP
         token={callInfo.token}
         serverUrl={callInfo.url}
         roomName={callInfo.roomName}
+        role={callInfo.role}
+        isHost={callInfo.isHost}
         initialAudioEnabled={micEnabled}
         initialVideoEnabled={camEnabled && permissionState !== 'partial'}
         audioDeviceId={selectedAudioId}

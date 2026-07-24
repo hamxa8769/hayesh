@@ -34,6 +34,10 @@ interface LiveKitTokenPayload {
   nbf: number
   exp: number
   video: LiveKitVideoGrant
+  /** Opaque JSON string surfaced to every participant as `participant.metadata`.
+   *  Used to carry the joiner's role + host flag for in-room role-based UI.
+   *  Derived server-side only — never from client input. */
+  metadata?: string
 }
 
 export interface CreateLiveKitTokenParams {
@@ -45,6 +49,10 @@ export interface CreateLiveKitTokenParams {
   name?: string
   /** Whether this identity may publish audio/video/data. Defaults to true (both organizer and participant can publish). */
   canPublish?: boolean
+  /** Opaque JSON string exposed to every participant as `participant.metadata`
+   *  (e.g. the joiner's role + host flag for role-based in-room UI). Always
+   *  built server-side from the session — never trust a client-supplied value. */
+  metadata?: string
 }
 
 function base64UrlEncode(value: string): string {
@@ -63,6 +71,7 @@ export async function createLiveKitToken({
   identity,
   name,
   canPublish = true,
+  metadata,
 }: CreateLiveKitTokenParams): Promise<string> {
   const apiKey = process.env.LIVEKIT_API_KEY
   const apiSecret = process.env.LIVEKIT_API_SECRET
@@ -98,6 +107,7 @@ export async function createLiveKitToken({
       canSubscribe: true,
       canPublishData: true,
     },
+    ...(metadata ? { metadata } : {}),
   }
 
   const encodedHeader = base64UrlEncode(JSON.stringify(header))

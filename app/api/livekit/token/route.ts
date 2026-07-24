@@ -37,6 +37,12 @@ interface TokenSuccessResponse {
   token: string
   url: string
   roomName: string
+  /** The joiner's platform role and whether they are this meeting's host
+   *  (organizer). Returned so the in-room UI can gate host controls without
+   *  re-deriving anything client-side. Also embedded in the token metadata so
+   *  OTHER participants can see each joiner's role. */
+  role: string | null
+  isHost: boolean
 }
 
 interface TokenErrorResponse {
@@ -126,6 +132,11 @@ export async function POST(request: Request): Promise<NextResponse<TokenSuccessR
   // never turns into a token for an undefined room.
   const roomName = meeting.room_url || `hayesh-${meeting.id}`
 
+  // The host is the meeting's organizer. An admin joining someone else's
+  // meeting is an observer, not the host — so isHost is strictly organizer.
+  const role = profile?.role ?? null
+  const isHost = isOrganizer
+
   let token: string
   try {
     token = await createLiveKitToken({
@@ -133,11 +144,13 @@ export async function POST(request: Request): Promise<NextResponse<TokenSuccessR
       identity: user.id,
       name: profile?.full_name || undefined,
       canPublish: true,
+      // Surfaced to every participant as participant.metadata for role badges.
+      metadata: JSON.stringify({ role, isHost }),
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to create video token'
     return NextResponse.json({ error: message }, { status: 500 })
   }
 
-  return NextResponse.json({ token, url: livekitUrl, roomName })
+  return NextResponse.json({ token, url: livekitUrl, roomName, role, isHost })
 }

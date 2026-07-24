@@ -33,6 +33,10 @@ export interface VideoRoomProps {
   token: string
   serverUrl: string
   roomName: string
+  /** The local joiner's platform role (from the token route). */
+  role?: string | null
+  /** Whether the local joiner is this meeting's host (organizer). */
+  isHost?: boolean
   initialAudioEnabled: boolean
   initialVideoEnabled: boolean
   audioDeviceId?: string
@@ -44,6 +48,8 @@ export function VideoRoom({
   token,
   serverUrl,
   roomName,
+  role = null,
+  isHost = false,
   initialAudioEnabled,
   initialVideoEnabled,
   audioDeviceId,
@@ -84,10 +90,16 @@ export function VideoRoom({
           color: var(--color-text-muted);
         }
       `}</style>
+      {/* adaptiveStream: automatically drops the received resolution of tiles
+          that are small/off-screen; dynacast: pauses layers no one is
+          subscribed to. Together they cut mobile bandwidth + battery use and
+          deliver the blueprint's "auto-lower quality on weak networks / 540p on
+          mobile" behaviour without any manual logic. */}
       <LiveKitRoom
         serverUrl={serverUrl}
         token={token}
         connect
+        options={{ adaptiveStream: true, dynacast: true }}
         audio={initialAudioEnabled ? (audioDeviceId ? { deviceId: audioDeviceId } : true) : false}
         video={initialVideoEnabled ? (videoDeviceId ? { deviceId: videoDeviceId } : true) : false}
         onDisconnected={() => onLeave()}
@@ -95,7 +107,13 @@ export function VideoRoom({
         className="flex min-h-[60vh] w-full max-w-full flex-1 flex-col"
       >
         <RoomAudioRenderer />
-        <RoomInterior roomName={roomName} connectionError={connectionError} onDismissError={() => setConnectionError(null)} />
+        <RoomInterior
+          roomName={roomName}
+          role={role}
+          isHost={isHost}
+          connectionError={connectionError}
+          onDismissError={() => setConnectionError(null)}
+        />
       </LiveKitRoom>
     </div>
   )
@@ -103,11 +121,23 @@ export function VideoRoom({
 
 interface RoomInteriorProps {
   roomName: string
+  role: string | null
+  isHost: boolean
   connectionError: string | null
   onDismissError: () => void
 }
 
-function RoomInterior({ roomName, connectionError, onDismissError }: RoomInteriorProps) {
+/** "Host", "Admin · observer", or the capitalized role — shown top-left so
+ *  everyone can see the local joiner's standing in the room. */
+function getRoleBadge(role: string | null, isHost: boolean): string | null {
+  if (isHost) return 'Host'
+  if (role === 'admin') return 'Admin · observer'
+  if (role) return role.charAt(0).toUpperCase() + role.slice(1)
+  return null
+}
+
+function RoomInterior({ roomName, role, isHost, connectionError, onDismissError }: RoomInteriorProps) {
+  const roleBadge = getRoleBadge(role, isHost)
   const room = useRoomContext()
   const connectionState = useConnectionState(room)
   const participants = useParticipants()
@@ -137,6 +167,21 @@ function RoomInterior({ roomName, connectionError, onDismissError }: RoomInterio
 
   return (
     <div className="relative flex flex-1 flex-col">
+      {roleBadge && (
+        <div className="pointer-events-none absolute left-2 top-2 z-20 sm:left-3 sm:top-3">
+          <span
+            className={cn(
+              'rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] backdrop-blur',
+              isHost
+                ? 'border-accent-primary/40 bg-accent-primary/10 text-accent-primary'
+                : 'border-border bg-surface/80 text-text-muted'
+            )}
+          >
+            {roleBadge}
+          </span>
+        </div>
+      )}
+
       {(isReconnecting || isConnecting || connectionError) && (
         <div className="absolute inset-x-0 top-0 z-20 flex justify-center p-2">
           <div
