@@ -66,7 +66,10 @@ interface InvitedMeetingRow extends Meeting {
 const createMeetingSchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(200, 'Keep the title under 200 characters'),
   agenda: z.string().trim().max(2000, 'Keep the agenda under 2000 characters').optional(),
-  scheduled_at: z.string().min(1, 'scheduled_at is required'),
+  // Optional: omitted for a "start now" meeting, required otherwise.
+  scheduled_at: z.string().optional(),
+  // Start the meeting immediately (scheduled_at is set to now server-side).
+  start_now: z.boolean().optional().default(false),
   duration_minutes: z
     .number()
     .int()
@@ -244,12 +247,22 @@ export async function POST(request: Request): Promise<
     return NextResponse.json({ error: 'Duplicate invitees are not allowed' }, { status: 400 })
   }
 
-  const scheduledAt = new Date(values.scheduled_at)
-  if (Number.isNaN(scheduledAt.getTime())) {
-    return NextResponse.json({ error: 'scheduled_at must be a valid date' }, { status: 400 })
-  }
-  if (scheduledAt.getTime() <= Date.now()) {
-    return NextResponse.json({ error: 'scheduled_at must be in the future' }, { status: 400 })
+  // A "start now" meeting begins immediately; a scheduled one must have a
+  // valid future start time.
+  let scheduledAt: Date
+  if (values.start_now) {
+    scheduledAt = new Date()
+  } else {
+    if (!values.scheduled_at) {
+      return NextResponse.json({ error: 'A start time is required' }, { status: 400 })
+    }
+    scheduledAt = new Date(values.scheduled_at)
+    if (Number.isNaN(scheduledAt.getTime())) {
+      return NextResponse.json({ error: 'scheduled_at must be a valid date' }, { status: 400 })
+    }
+    if (scheduledAt.getTime() <= Date.now()) {
+      return NextResponse.json({ error: 'scheduled_at must be in the future' }, { status: 400 })
+    }
   }
 
   const { allowed, rejected } = await filterInvitable({

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { InviteePicker, type SelectedUser } from "@/components/meetings/InviteePicker"
+import { cn } from "@/lib/utils/cn"
 
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120] as const
 
@@ -19,18 +21,27 @@ const CONTEXT_OPTIONS: { value: "general" | "tutoring" | "gig"; label: string }[
   { value: "gig", label: "Gig" },
 ]
 
-const createMeetingSchema = z.object({
-  title: z.string().trim().min(1, "Title is required").max(200, "Keep the title under 200 characters"),
-  agenda: z.string().trim().max(2000, "Keep the agenda under 2000 characters").optional(),
-  scheduled_at: z
-    .string()
-    .min(1, "Pick a start time")
-    .refine((v) => !Number.isNaN(new Date(v).getTime()), { message: "Pick a valid start time" })
-    .refine((v) => new Date(v).getTime() > Date.now(), { message: "Start time must be in the future" }),
-  duration_minutes: z.coerce.number().int().min(15).max(180),
-  context: z.enum(["general", "tutoring", "gig"]),
-  waiting_room: z.boolean(),
-})
+const createMeetingSchema = z
+  .object({
+    title: z.string().trim().min(1, "Title is required").max(200, "Keep the title under 200 characters"),
+    agenda: z.string().trim().max(2000, "Keep the agenda under 2000 characters").optional(),
+    start_now: z.boolean(),
+    scheduled_at: z.string(),
+    duration_minutes: z.coerce.number().int().min(15).max(180),
+    context: z.enum(["general", "tutoring", "gig"]),
+    waiting_room: z.boolean(),
+  })
+  .superRefine((val, ctx) => {
+    // Start time only matters for a scheduled meeting — a "start now" meeting
+    // begins immediately, so its (empty) scheduled_at must not fail validation.
+    if (val.start_now) return
+    const time = new Date(val.scheduled_at).getTime()
+    if (!val.scheduled_at || Number.isNaN(time)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scheduled_at"], message: "Pick a valid start time" })
+    } else if (time <= Date.now()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["scheduled_at"], message: "Start time must be in the future" })
+    }
+  })
 
 // z.coerce.number() makes the schema's INPUT type differ from its OUTPUT type
 // (duration_minutes is `unknown` in, `number` out), so useForm needs the
@@ -48,6 +59,7 @@ export interface CreateMeetingModalProps {
 const emptyValues: CreateMeetingInput = {
   title: "",
   agenda: "",
+  start_now: true,
   scheduled_at: "",
   duration_minutes: 30,
   context: "general",
@@ -57,6 +69,7 @@ const emptyValues: CreateMeetingInput = {
 /** Modal for POST /api/meetings — copies the shell/focus-trap/escape-close pattern from RequestFormModal. */
 export function CreateMeetingModal({ open, onClose, onCreated }: CreateMeetingModalProps) {
   const prefersReducedMotion = useReducedMotion()
+  const router = useRouter()
   const [invitees, setInvitees] = useState<SelectedUser[]>([])
   const [inviteesError, setInviteesError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -68,12 +81,16 @@ export function CreateMeetingModal({ open, onClose, onCreated }: CreateMeetingMo
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<CreateMeetingInput, unknown, CreateMeetingValues>({
     resolver: zodResolver(createMeetingSchema),
     defaultValues: emptyValues,
     mode: "onBlur",
   })
+
+  const startNow = watch("start_now")
 
   useEffect(() => {
     submittingRef.current = submitting
@@ -152,16 +169,24 @@ export function CreateMeetingModal({ open, onClose, onCreated }: CreateMeetingMo
         body: JSON.stringify({
           title: values.title,
           agenda: values.agenda || undefined,
-          scheduled_at: new Date(values.scheduled_at).toISOString(),
+          start_now: values.start_now,
+          scheduled_at: values.start_now ? undefined : new Date(values.scheduled_at).toISOString(),
           duration_minutes: values.duration_minutes,
           context: values.context,
           invitee_ids: invitees.map((u) => u.id),
           waiting_room: values.waiting_room,
         }),
       })
-      const json = (await res.json()) as { error?: string }
+      const json = (await res.json()) as { id?: string; error?: string }
       if (!res.ok) {
         setSubmitError(json.error ?? "Could not create this meeting")
+        return
+      }
+      // Start now: the invitees are notified and the host jumps straight into
+      // the room. Scheduled: just refresh the hub list.
+      if (values.start_now && json.id) {
+        onClose()
+        router.push(`/meet/${json.id}`)
         return
       }
       onCreated()
@@ -222,6 +247,29 @@ export function CreateMeetingModal({ open, onClose, onCreated }: CreateMeetingMo
             </div>
 
             <form onSubmit={handleSubmit(submit)} className="mt-5 space-y-4">
+              <div className="flex rounded-lg border border-border bg-surface-elevated p-1">
+                <button
+                  type="button"
+                  onClick={() => setValue("start_now", true)}
+                  className={cn(
+                    "flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    startNow ? "bg-accent-primary/15 text-accent-primary" : "text-text-muted hover:text-text-primary"
+                  )}
+                >
+                  Start now
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setValue("start_now", false)}
+                  className={cn(
+                    "flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    !startNow ? "bg-accent-primary/15 text-accent-primary" : "text-text-muted hover:text-text-primary"
+                  )}
+                >
+                  Schedule for later
+                </button>
+              </div>
+
               <div className="space-y-1.5">
                 <Label htmlFor="meeting-title">Title</Label>
                 <Input id="meeting-title" {...register("title")} placeholder="e.g. Weekly progress check-in" />
@@ -241,11 +289,13 @@ export function CreateMeetingModal({ open, onClose, onCreated }: CreateMeetingMo
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="meeting-scheduled-at">Start time</Label>
-                  <Input id="meeting-scheduled-at" type="datetime-local" {...register("scheduled_at")} />
-                  {errors.scheduled_at && <p className="text-xs text-accent-danger">{errors.scheduled_at.message}</p>}
-                </div>
+                {!startNow && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="meeting-scheduled-at">Start time</Label>
+                    <Input id="meeting-scheduled-at" type="datetime-local" {...register("scheduled_at")} />
+                    {errors.scheduled_at && <p className="text-xs text-accent-danger">{errors.scheduled_at.message}</p>}
+                  </div>
+                )}
                 <div className="space-y-1.5">
                   <Label htmlFor="meeting-duration">Duration</Label>
                   <select
@@ -318,7 +368,7 @@ export function CreateMeetingModal({ open, onClose, onCreated }: CreateMeetingMo
                 </Button>
                 <Button type="submit" variant="aurora" disabled={submitting}>
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  Schedule Meeting
+                  {startNow ? "Start Meeting" : "Schedule Meeting"}
                 </Button>
               </div>
             </form>
