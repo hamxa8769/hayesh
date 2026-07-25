@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -208,8 +208,25 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
   const [chatOpen, setChatOpen] = useState(false)
   const [participantsOpen, setParticipantsOpen] = useState(false)
 
-  const { messages, reactions, handsRaised, unreadCount, sendChat, sendReaction, raiseHand, markRead } =
-    useRoomMessaging()
+  const {
+    messages,
+    reactions,
+    handsRaised,
+    unreadCount,
+    sendChat,
+    sendReaction,
+    raiseHand,
+    markRead,
+    isRecording,
+    broadcastRecording,
+  } = useRoomMessaging()
+
+  const [recordingPending, setRecordingPending] = useState(false)
+  const [recordError, setRecordError] = useState<string | null>(null)
+  // Held by the host who started the recording, so they can stop it. The
+  // room-wide REC indicator is driven by isRecording (data channel), but only
+  // the starter holds the egress id needed to stop.
+  const egressIdRef = useRef<string | null>(null)
 
   // Defensive cleanup: LiveKitRoom already disconnects on unmount, but this
   // guarantees it — a leaked room connection keeps the camera light on and
@@ -237,6 +254,44 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
     })
   }
 
+  const handleToggleRecording = async () => {
+    setRecordingPending(true)
+    setRecordError(null)
+    try {
+      if (isRecording) {
+        const response = await fetch('/api/livekit/record', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: roomName, action: 'stop', egress_id: egressIdRef.current ?? undefined }),
+        })
+        const data: { ok?: true; error?: string } = await response.json()
+        if (!response.ok || !data.ok) {
+          setRecordError(data.error ?? 'Failed to stop recording')
+          return
+        }
+        egressIdRef.current = null
+        broadcastRecording(false)
+      } else {
+        const response = await fetch('/api/livekit/record', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ room: roomName, action: 'start' }),
+        })
+        const data: { ok?: true; egressId?: string; error?: string } = await response.json()
+        if (!response.ok || !data.ok || !data.egressId) {
+          setRecordError(data.error ?? 'Failed to start recording')
+          return
+        }
+        egressIdRef.current = data.egressId
+        broadcastRecording(true)
+      }
+    } catch {
+      setRecordError('Network error — could not change recording state')
+    } finally {
+      setRecordingPending(false)
+    }
+  }
+
   return (
     <div className="relative flex flex-1 flex-col">
       {roleBadge && (
@@ -250,6 +305,15 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
             )}
           >
             {roleBadge}
+          </span>
+        </div>
+      )}
+
+      {isRecording && (
+        <div className="pointer-events-none absolute right-2 top-2 z-20 sm:right-3 sm:top-3">
+          <span className="flex items-center gap-1.5 rounded-full border border-accent-danger/40 bg-accent-danger/15 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-accent-danger backdrop-blur">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-accent-danger" />
+            REC
           </span>
         </div>
       )}
@@ -280,6 +344,15 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
       <MeetingStage handsRaised={handsRaised} />
       <ReactionsOverlay reactions={reactions} />
 
+      {recordError && (
+        <div
+          role="alert"
+          className="mx-2 mb-1 rounded-md border border-accent-danger/30 bg-accent-danger/10 px-3 py-2 text-xs text-accent-danger sm:mx-3"
+        >
+          {recordError}
+        </div>
+      )}
+
       <ControlDock
         role={role}
         isHost={isHost}
@@ -291,6 +364,9 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
         onRaiseHand={raiseHand}
         canModerate={canModerate}
         roomName={roomName}
+        isRecording={isRecording}
+        recordingPending={recordingPending}
+        onToggleRecording={handleToggleRecording}
       />
 
       <ChatSheet open={chatOpen} onClose={() => setChatOpen(false)} messages={messages} onSend={sendChat} />

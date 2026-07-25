@@ -35,6 +35,12 @@ export interface ControlDockProps {
   canModerate: boolean
   /** The LiveKit room name — required to target moderation actions server-side. */
   roomName: string
+  /** Room-wide recording state (host/admin can toggle it). */
+  isRecording: boolean
+  /** A record start/stop request is in flight. */
+  recordingPending: boolean
+  /** Start/stop recording — owned by VideoRoom (holds the egress id). */
+  onToggleRecording: () => void
 }
 
 /** Fixed bottom control bar: mic/camera/screen-share toggles, reactions,
@@ -51,6 +57,9 @@ export function ControlDock({
   onRaiseHand,
   canModerate,
   roomName,
+  isRecording,
+  recordingPending,
+  onToggleRecording,
 }: ControlDockProps) {
   const { isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled, localParticipant } = useLocalParticipant()
   const [deviceError, setDeviceError] = useState<string | null>(null)
@@ -226,6 +235,30 @@ export function ControlDock({
             className="ml-2 flex h-12 items-center justify-center rounded-full border border-accent-warning/40 bg-accent-warning/10 px-4 font-mono text-xs uppercase tracking-[0.08em] text-accent-warning transition-colors hover:bg-accent-warning/20 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {muteAllPending ? 'Muting…' : 'Mute all'}
+          </button>
+        )}
+
+        {canModerate && (
+          <button
+            type="button"
+            onClick={onToggleRecording}
+            disabled={recordingPending}
+            aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+            aria-pressed={isRecording}
+            className={cn(
+              'flex h-12 items-center justify-center gap-2 rounded-full border px-4 font-mono text-xs uppercase tracking-[0.08em] transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+              isRecording
+                ? 'border-accent-danger/40 bg-accent-danger/15 text-accent-danger hover:bg-accent-danger/25'
+                : 'border-border bg-surface-elevated text-text-primary hover:bg-surface'
+            )}
+          >
+            <span
+              className={cn(
+                'h-2.5 w-2.5 rounded-full',
+                isRecording ? 'animate-pulse bg-accent-danger' : 'bg-accent-danger/70'
+              )}
+            />
+            {recordingPending ? '…' : isRecording ? 'Stop' : 'Record'}
           </button>
         )}
 

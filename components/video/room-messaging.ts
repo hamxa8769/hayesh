@@ -36,7 +36,8 @@ export interface ParticipantMeta {
 type ChatEnvelope = { kind: 'chat'; id: string; text: string; senderName: string; at: number }
 type ReactionEnvelope = { kind: 'reaction'; emoji: string; senderName: string; at: number }
 type HandEnvelope = { kind: 'hand'; raised: boolean }
-type RoomEnvelope = ChatEnvelope | ReactionEnvelope | HandEnvelope
+type RecordingEnvelope = { kind: 'recording'; active: boolean }
+type RoomEnvelope = ChatEnvelope | ReactionEnvelope | HandEnvelope | RecordingEnvelope
 
 /** Parses a LiveKit participant's `metadata` JSON string (set by
  *  app/api/livekit/token/route.ts as `{ role, isHost }`). Never throws —
@@ -58,7 +59,7 @@ export function parseParticipantMeta(metadata: string | undefined): ParticipantM
 function isRoomEnvelope(value: unknown): value is RoomEnvelope {
   if (typeof value !== 'object' || value === null) return false
   const kind = (value as { kind?: unknown }).kind
-  return kind === 'chat' || kind === 'reaction' || kind === 'hand'
+  return kind === 'chat' || kind === 'reaction' || kind === 'hand' || kind === 'recording'
 }
 
 function decodeEnvelope(payload: Uint8Array): RoomEnvelope | null {
@@ -89,6 +90,10 @@ export interface UseRoomMessagingReturn {
   raiseHand: (raised: boolean) => void
   /** Resets unreadCount to 0 — call when the chat sheet is opened. */
   markRead: () => void
+  /** Room-wide recording indicator (last-writer-wins over the data channel). */
+  isRecording: boolean
+  /** Broadcasts the recording state to everyone and applies it locally. */
+  broadcastRecording: (active: boolean) => void
 }
 
 /**
@@ -104,6 +109,7 @@ export function useRoomMessaging(): UseRoomMessagingReturn {
   const [reactions, setReactions] = useState<TransientReaction[]>([])
   const [handsRaised, setHandsRaised] = useState<Record<string, boolean>>({})
   const [unreadCount, setUnreadCount] = useState(0)
+  const [isRecording, setIsRecording] = useState(false)
 
   const reactionTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
@@ -142,6 +148,11 @@ export function useRoomMessaging(): UseRoomMessagingReturn {
         const id = makeId('remote-reaction')
         setReactions((current) => [...current, { id, emoji: envelope.emoji, senderName: envelope.senderName }])
         scheduleReactionRemoval(id)
+        return
+      }
+
+      if (envelope.kind === 'recording') {
+        setIsRecording(envelope.active)
         return
       }
 
@@ -205,5 +216,25 @@ export function useRoomMessaging(): UseRoomMessagingReturn {
 
   const markRead = useCallback(() => setUnreadCount(0), [])
 
-  return { messages, reactions, handsRaised, unreadCount, sendChat, sendReaction, raiseHand, markRead }
+  const broadcastRecording = useCallback(
+    (active: boolean) => {
+      const envelope: RecordingEnvelope = { kind: 'recording', active }
+      void send(encodeEnvelope(envelope), { reliable: true })
+      setIsRecording(active)
+    },
+    [send]
+  )
+
+  return {
+    messages,
+    reactions,
+    handsRaised,
+    unreadCount,
+    sendChat,
+    sendReaction,
+    raiseHand,
+    markRead,
+    isRecording,
+    broadcastRecording,
+  }
 }
