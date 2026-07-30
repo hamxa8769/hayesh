@@ -67,7 +67,7 @@ export function VideoRoom({
   const [connectionError, setConnectionError] = useState<string | null>(null)
 
   return (
-    <div className="flex min-h-[60vh] w-full max-w-full flex-col overflow-hidden rounded-lg border border-border bg-surface">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background">
       {/* @livekit/components-styles is NOT installed in this project (not
           in package.json/node_modules, and adding a dependency is out of
           scope), so ParticipantTile's internal <video>/<audio> elements
@@ -118,7 +118,7 @@ export function VideoRoom({
         video={admitted ? (initialVideoEnabled ? (videoDeviceId ? { deviceId: videoDeviceId } : true) : false) : false}
         onDisconnected={() => onLeave()}
         onError={(error) => setConnectionError(error.message)}
-        className="flex min-h-[60vh] w-full max-w-full flex-1 flex-col"
+        className="flex min-h-0 w-full max-w-full flex-1 flex-col"
       >
         <RoomAudioRenderer />
         <RoomGate
@@ -287,6 +287,15 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
   const waiting = useWaitingParticipants()
   const [admittingId, setAdmittingId] = useState<string | null>(null)
 
+  // Shareable join link for this meeting. roomName is `hayesh-<uuid>`; the
+  // /meet/<uuid> page is the join surface. Built in an effect so window is
+  // only read client-side.
+  const meetingId = roomName.startsWith('hayesh-') ? roomName.slice('hayesh-'.length) : roomName
+  const [meetingLink, setMeetingLink] = useState('')
+  useEffect(() => {
+    if (typeof window !== 'undefined') setMeetingLink(`${window.location.origin}/meet/${meetingId}`)
+  }, [meetingId])
+
   // Defensive cleanup: LiveKitRoom already disconnects on unmount, but this
   // guarantees it — a leaked room connection keeps the camera light on and
   // is a real privacy problem, not just a resource leak. Explicitly stopping
@@ -349,6 +358,10 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
     } finally {
       setRecordingPending(false)
     }
+  }
+
+  const handleShareLinkToChat = () => {
+    if (meetingLink) sendChat(`Join the meeting: ${meetingLink}`)
   }
 
   const handleAdmit = async (identity: string) => {
@@ -470,6 +483,8 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
         isRecording={isRecording}
         recordingPending={recordingPending}
         onToggleRecording={handleToggleRecording}
+        meetingLink={meetingLink}
+        onShareLinkToChat={handleShareLinkToChat}
       />
 
       <ChatSheet open={chatOpen} onClose={() => setChatOpen(false)} messages={messages} onSend={sendChat} />
