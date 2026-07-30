@@ -399,13 +399,26 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
       )}
 
       {canModerate && waiting.length > 0 && (
-        <div className="absolute inset-x-0 top-0 z-30 flex justify-center p-2 sm:p-3">
-          <div className="glass w-full max-w-sm rounded-lg border border-accent-primary/40 p-3 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-            <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-accent-primary">
-              <UserPlus className="h-3.5 w-3.5" />
-              {waiting.length} waiting to join
-            </p>
-            <ul className="mt-2 space-y-1.5">
+        // Centered action popup — only the card catches pointer events, so the
+        // call behind it stays fully interactive and visible.
+        <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center p-4">
+          <div className="pointer-events-auto w-full max-w-sm rounded-lg border border-accent-primary/40 bg-surface p-4 shadow-[0_12px_40px_rgba(0,0,0,0.6)]">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-accent-primary">
+                <UserPlus className="h-3.5 w-3.5" />
+                Waiting to join ({waiting.length})
+              </p>
+              {waiting.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => waiting.forEach((person) => handleAdmit(person.identity))}
+                  className="shrink-0 rounded-full border border-accent-success/40 bg-accent-success/10 px-2.5 py-1 text-xs font-medium text-accent-success transition-colors hover:bg-accent-success/20"
+                >
+                  Admit all
+                </button>
+              )}
+            </div>
+            <ul className="mt-3 space-y-2">
               {waiting.map((person) => (
                 <li key={person.identity} className="flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate text-sm text-text-primary">{person.name}</span>
