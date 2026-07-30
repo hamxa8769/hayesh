@@ -79,16 +79,16 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
     <AnimatePresence>
       {open && (
         <>
-          {/* Transparent click-outside-to-close layer — no dimming, so the
-              video stage stays fully visible above the sheet. */}
+          {/* Dimmed click-outside-to-close layer so the sheet reads clearly
+              against the video behind it. */}
           <motion.button
             type="button"
             aria-label="Close"
             onClick={onClose}
-            initial={{ opacity: 1 }}
+            initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 1 }}
-            className="absolute inset-0 z-30 cursor-default"
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-30 cursor-default bg-black/60"
           />
           <motion.div
             ref={sheetRef}
@@ -100,7 +100,9 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
             animate={prefersReducedMotion ? { opacity: 1 } : { y: 0 }}
             exit={prefersReducedMotion ? { opacity: 0 } : { y: '100%' }}
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="glass absolute inset-x-0 bottom-0 z-40 flex max-h-[70%] flex-col rounded-t-2xl border-t border-line-strong outline-none"
+            // Solid (not translucent) so its contents are readable over the
+            // video stage — the old .glass background blended into the call.
+            className="absolute inset-x-0 bottom-0 z-40 flex max-h-[70%] flex-col rounded-t-2xl border-t border-line-strong bg-surface shadow-[0_-8px_30px_rgba(0,0,0,0.6)] outline-none"
           >
             <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-text-disabled/40" aria-hidden="true" />
             <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">

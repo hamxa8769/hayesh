@@ -105,7 +105,7 @@ export function ControlDock({
             animate={{ opacity: 1, y: 0 }}
             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
             transition={{ duration: 0.15 }}
-            className="glass absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 gap-1 rounded-full border border-line-strong px-2 py-2"
+            className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 gap-1 rounded-full border border-line-strong bg-surface px-2 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
           >
             {REACTION_EMOJIS.map((emoji) => (
               <button
@@ -162,7 +162,7 @@ export function ControlDock({
             showIcon={false}
             onDeviceError={(error) => setDeviceError(error.message)}
             className={cn(
-              'hidden h-12 w-12 items-center justify-center rounded-full border transition-colors sm:flex',
+              'flex h-12 w-12 items-center justify-center rounded-full border transition-colors',
               isScreenShareEnabled
                 ? 'border-accent-primary/40 bg-accent-primary/10 text-accent-primary'
                 : 'border-border bg-surface-elevated text-text-primary hover:bg-surface'

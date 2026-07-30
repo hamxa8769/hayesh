@@ -8,8 +8,9 @@ import {
   useLocalParticipant,
   useRoomContext,
 } from '@livekit/components-react'
-import { ConnectionState } from 'livekit-client'
-import { X, WifiOff } from 'lucide-react'
+import { ConnectionState, ParticipantEvent, RoomEvent } from 'livekit-client'
+import type { RemoteParticipant } from 'livekit-client'
+import { X, WifiOff, UserPlus, Check } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { MeetingStage } from '@/components/video/MeetingStage'
 import { ControlDock } from '@/components/video/ControlDock'
@@ -153,18 +154,30 @@ interface RoomGateProps {
  * not-admitted -> admitted for a given join, never back.
  */
 function RoomGate({ roomName, role, isHost, admitted, connectionError, onDismissError }: RoomGateProps) {
-  const { localParticipant } = useLocalParticipant()
-  // Start from the token-time snapshot (authoritative and already correct
-  // for the overwhelmingly common non-waiting-room case), then flip to
-  // admitted once LiveKit confirms canSubscribe permission was actually
-  // granted. Checking `=== true` (rather than defaulting undefined to
-  // admitted) matters here specifically because `admitted` may start false:
-  // permissions can be momentarily undefined right after connecting, and
-  // treating that as "admitted" would flash the call UI before the host has
-  // actually let this participant in.
-  const isAdmitted = admitted || localParticipant.permissions?.canSubscribe === true
+  const room = useRoomContext()
+  // Start from the token-time snapshot (authoritative and already correct for
+  // the common no-waiting-room case). Then flip to admitted the moment the
+  // host grants canSubscribe. CRUCIAL: `useLocalParticipant()` does NOT
+  // re-render on a permission change, so we subscribe to the local
+  // participant's ParticipantPermissionsChanged event ourselves and drive a
+  // state flag — otherwise the lobby would never clear even after admission.
+  const [granted, setGranted] = useState(
+    admitted || room.localParticipant.permissions?.canSubscribe === true
+  )
 
-  if (!isAdmitted) {
+  useEffect(() => {
+    const lp = room.localParticipant
+    const check = () => {
+      if (lp.permissions?.canSubscribe) setGranted(true)
+    }
+    check() // in case admission already happened before this effect ran
+    lp.on(ParticipantEvent.ParticipantPermissionsChanged, check)
+    return () => {
+      lp.off(ParticipantEvent.ParticipantPermissionsChanged, check)
+    }
+  }, [room])
+
+  if (!granted) {
     return <Lobby />
   }
 
@@ -177,6 +190,47 @@ function RoomGate({ roomName, role, isHost, admitted, connectionError, onDismiss
       onDismissError={onDismissError}
     />
   )
+}
+
+interface WaitingParticipant {
+  identity: string
+  name: string
+}
+
+/**
+ * Tracks who is currently waiting to be admitted (remote participants whose
+ * canSubscribe permission is false), reactively. Listens at the ROOM level to
+ * connect/disconnect/permission events — `useParticipants()` alone does not
+ * re-render when only a remote's permissions change, which is exactly the
+ * transition we need to catch when someone is admitted.
+ */
+function useWaitingParticipants(): WaitingParticipant[] {
+  const room = useRoomContext()
+  const [waiting, setWaiting] = useState<WaitingParticipant[]>([])
+
+  useEffect(() => {
+    const recompute = () => {
+      const list: WaitingParticipant[] = []
+      room.remoteParticipants.forEach((p: RemoteParticipant) => {
+        if (p.permissions && p.permissions.canSubscribe === false) {
+          list.push({ identity: p.identity, name: p.name || p.identity })
+        }
+      })
+      setWaiting(list)
+    }
+    recompute()
+    const events: RoomEvent[] = [
+      RoomEvent.ParticipantConnected,
+      RoomEvent.ParticipantDisconnected,
+      RoomEvent.ParticipantPermissionsChanged,
+    ]
+    events.forEach((e) => room.on(e, recompute))
+    return () => {
+      events.forEach((e) => room.off(e, recompute))
+    }
+  }, [room])
+
+  return waiting
 }
 
 interface RoomInteriorProps {
@@ -227,6 +281,11 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
   // room-wide REC indicator is driven by isRecording (data channel), but only
   // the starter holds the egress id needed to stop.
   const egressIdRef = useRef<string | null>(null)
+
+  // Who's waiting in the lobby (host/admin only need this), and which one is
+  // mid-admit so its button can show a spinner.
+  const waiting = useWaitingParticipants()
+  const [admittingId, setAdmittingId] = useState<string | null>(null)
 
   // Defensive cleanup: LiveKitRoom already disconnects on unmount, but this
   // guarantees it — a leaked room connection keeps the camera light on and
@@ -292,6 +351,23 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
     }
   }
 
+  const handleAdmit = async (identity: string) => {
+    setAdmittingId(identity)
+    try {
+      await fetch('/api/livekit/admit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ room: roomName, target_identity: identity }),
+      })
+      // On success the admitted participant's permission changes; the
+      // useWaitingParticipants listener drops them from the list on its own.
+    } catch {
+      // Best-effort — on failure they simply remain in the waiting list.
+    } finally {
+      setAdmittingId(null)
+    }
+  }
+
   return (
     <div className="relative flex flex-1 flex-col">
       {roleBadge && (
@@ -306,6 +382,33 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
           >
             {roleBadge}
           </span>
+        </div>
+      )}
+
+      {canModerate && waiting.length > 0 && (
+        <div className="absolute inset-x-0 top-0 z-30 flex justify-center p-2 sm:p-3">
+          <div className="glass w-full max-w-sm rounded-lg border border-accent-primary/40 p-3 shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+            <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-accent-primary">
+              <UserPlus className="h-3.5 w-3.5" />
+              {waiting.length} waiting to join
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {waiting.map((person) => (
+                <li key={person.identity} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-sm text-text-primary">{person.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleAdmit(person.identity)}
+                    disabled={admittingId === person.identity}
+                    className="flex shrink-0 items-center gap-1 rounded-full border border-accent-success/40 bg-accent-success/10 px-3 py-1 text-xs font-medium text-accent-success transition-colors hover:bg-accent-success/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    {admittingId === person.identity ? 'Admitting…' : 'Admit'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       )}
 
