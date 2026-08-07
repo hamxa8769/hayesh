@@ -89,16 +89,37 @@ export function ControlDock({
     )
   }, [])
 
+  // Auto-dismiss transient device/copy errors so they don't stick forever.
+  useEffect(() => {
+    if (!deviceError) return
+    const t = setTimeout(() => setDeviceError(null), 6000)
+    return () => clearTimeout(t)
+  }, [deviceError])
+
   const isHandRaised = Boolean(handsRaised[localParticipant.identity])
 
   const handleCopyLink = async () => {
     if (!meetingLink) return
     try {
-      await navigator.clipboard.writeText(meetingLink)
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(meetingLink)
+      } else {
+        // Fallback for non-secure contexts (e.g. http:// over a LAN IP) where
+        // the async clipboard API isn't available.
+        const el = document.createElement('textarea')
+        el.value = meetingLink
+        el.style.position = 'fixed'
+        el.style.opacity = '0'
+        document.body.appendChild(el)
+        el.focus()
+        el.select()
+        document.execCommand('copy')
+        document.body.removeChild(el)
+      }
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      setDeviceError('Could not copy the link')
+      setDeviceError('Could not copy the link — long-press it to copy manually.')
     }
   }
 
@@ -141,6 +162,19 @@ export function ControlDock({
 
   return (
     <div className="relative shrink-0 border-t border-border bg-surface/95 px-3 py-3 backdrop-blur">
+      {(reactionsOpen || shareOpen) && (
+        <button
+          type="button"
+          aria-hidden="true"
+          tabIndex={-1}
+          onClick={() => {
+            setReactionsOpen(false)
+            setShareOpen(false)
+          }}
+          className="fixed inset-0 z-40 cursor-default"
+        />
+      )}
+
       {deviceError && (
         <div className="mb-2 rounded-md border border-accent-danger/30 bg-accent-danger/10 px-3 py-2 text-xs text-accent-danger">
           {deviceError}
@@ -154,7 +188,7 @@ export function ControlDock({
             animate={{ opacity: 1, y: 0 }}
             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 gap-1 rounded-full border border-line-strong bg-surface px-2 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
+            className="absolute bottom-full left-1/2 z-50 mb-2 flex -translate-x-1/2 gap-1 rounded-full border border-line-strong bg-surface px-2 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
           >
             {REACTION_EMOJIS.map((emoji) => (
               <button
@@ -181,7 +215,7 @@ export function ControlDock({
             animate={{ opacity: 1, y: 0 }}
             exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
             transition={{ duration: 0.15 }}
-            className="absolute bottom-full left-1/2 mb-2 w-[min(20rem,90vw)] -translate-x-1/2 rounded-lg border border-line-strong bg-surface p-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
+            className="absolute bottom-full left-1/2 z-50 mb-2 w-[min(20rem,90vw)] -translate-x-1/2 rounded-lg border border-line-strong bg-surface p-3 shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
           >
             <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted">Invite people</p>
             <div className="mt-2 flex items-center gap-2 rounded-md border border-border bg-surface-elevated px-2.5 py-2">

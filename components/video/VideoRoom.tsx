@@ -66,6 +66,13 @@ export function VideoRoom({
 }: VideoRoomProps) {
   const [connectionError, setConnectionError] = useState<string | null>(null)
 
+  // Don't let a one-off connection error banner hang around forever.
+  useEffect(() => {
+    if (!connectionError) return
+    const t = setTimeout(() => setConnectionError(null), 8000)
+    return () => clearTimeout(t)
+  }, [connectionError])
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background">
       {/* @livekit/components-styles is NOT installed in this project (not
@@ -220,13 +227,21 @@ function useWaitingParticipants(): WaitingParticipant[] {
     }
     recompute()
     const events: RoomEvent[] = [
+      RoomEvent.Connected,
       RoomEvent.ParticipantConnected,
       RoomEvent.ParticipantDisconnected,
       RoomEvent.ParticipantPermissionsChanged,
+      RoomEvent.ParticipantMetadataChanged,
     ]
     events.forEach((e) => room.on(e, recompute))
+    // When the HOST joins after an attendee is already waiting, that attendee
+    // is already in the room but their permission info can arrive a beat after
+    // this mounts — re-scan a few times so the popup appears without the host
+    // having to open the participants panel.
+    const timers = [400, 1200, 2500, 4500].map((ms) => setTimeout(recompute, ms))
     return () => {
       events.forEach((e) => room.off(e, recompute))
+      timers.forEach((t) => clearTimeout(t))
     }
   }, [room])
 
@@ -295,6 +310,13 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
   useEffect(() => {
     if (typeof window !== 'undefined') setMeetingLink(`${window.location.origin}/meet/${meetingId}`)
   }, [meetingId])
+
+  // Transient errors must clear themselves rather than stick on screen forever.
+  useEffect(() => {
+    if (!recordError) return
+    const t = setTimeout(() => setRecordError(null), 6000)
+    return () => clearTimeout(t)
+  }, [recordError])
 
   // Defensive cleanup: LiveKitRoom already disconnects on unmount, but this
   // guarantees it — a leaked room connection keeps the camera light on and
