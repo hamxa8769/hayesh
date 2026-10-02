@@ -37,7 +37,7 @@ test("tuition: parent enrols, pays, admin confirms, plan activates", async ({ br
   await dialog.locator("#enroll-plan").selectOption("private")
   const childInput = dialog.getByPlaceholder("Child's full name")
   if (await childInput.isVisible()) await childInput.fill("Ayesha")
-  await dialog.locator("#enroll-subject").selectOption({ label: "Mathematics" })
+  await dialog.locator("#enroll-subject").selectOption("Mathematics")
   await dialog.locator('button[type="submit"]').click()
 
   const txId = await payManually(parent)
