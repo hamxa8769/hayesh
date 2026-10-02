@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Bot, RotateCcw, Star, Zap } from "lucide-react"
+import { ArrowLeft, Bot, Loader2, RotateCcw, Star, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
@@ -11,19 +11,25 @@ import { formatPKR } from "@/lib/utils/format"
 import type { AIService, AIServiceInputField } from "@/types/database"
 
 type FormValues = Record<string, string>
+type PublicAIService = Omit<AIService, "system_prompt" | "ai_model" | "created_at" | "updated_at">
+
+const PUBLIC_COLUMNS =
+  "id,title,description,category,thumbnail_url,status,price_pkr,price_usd,output_format,delivery_time_hrs,input_schema,revisions_allowed,total_orders,average_rating,total_reviews"
 
 export default function AIServiceDetailPage() {
   const { id } = useParams()
   const router = useRouter()
-  const [service, setService] = useState<AIService | null>(null)
+  const [service, setService] = useState<PublicAIService | null>(null)
   const [loading, setLoading] = useState(true)
   const [formValues, setFormValues] = useState<FormValues>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [orderError, setOrderError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
-      const { data } = await supabase.from("ai_services").select("*").eq("id", id).single()
-      setService(data as AIService | null)
+      const { data } = await supabase.from("ai_services").select(PUBLIC_COLUMNS).eq("id", id).single()
+      setService(data as PublicAIService | null)
       setLoading(false)
     }
     load()
@@ -31,6 +37,39 @@ export default function AIServiceDetailPage() {
 
   const handleFieldChange = (fieldName: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [fieldName]: value }))
+  }
+
+  const handleOrder = async () => {
+    if (!service || submitting) return
+    const fields: AIServiceInputField[] = service.input_schema || []
+    const missing = fields.filter((f) => f.required && !(formValues[f.field_name] || "").trim()).map((f) => f.label)
+    if (missing.length > 0) {
+      setOrderError(`Please fill in: ${missing.join(", ")}`)
+      return
+    }
+    setSubmitting(true)
+    setOrderError(null)
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "ai_service", service_id: service.id, inputs: formValues }),
+      })
+      if (res.status === 401) {
+        router.push(`/auth/login?redirect=/ai-services/${id}`)
+        return
+      }
+      const json = (await res.json().catch(() => null)) as { transaction_id?: string; error?: string } | null
+      if (!res.ok || !json?.transaction_id) {
+        setOrderError(json?.error || "We couldn't start your order. Please try again.")
+        setSubmitting(false)
+        return
+      }
+      router.push(`/checkout/${json.transaction_id}`)
+    } catch {
+      setOrderError("Network error. Please try again.")
+      setSubmitting(false)
+    }
   }
 
   if (loading) {
@@ -162,7 +201,15 @@ export default function AIServiceDetailPage() {
         )}
 
         <Reveal delay={0.15} className="mt-8">
-          <Button variant="aurora" size="lg" className="w-full">Order Now</Button>
+          {orderError && (
+            <p role="alert" className="mb-3 rounded-lg border border-accent-danger/30 bg-accent-danger/10 px-4 py-3 text-sm text-accent-danger">
+              {orderError}
+            </p>
+          )}
+          <Button variant="aurora" size="lg" className="w-full" onClick={handleOrder} disabled={submitting}>
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            {submitting ? "Starting order..." : "Order Now"}
+          </Button>
         </Reveal>
       </div>
     </div>

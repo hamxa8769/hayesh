@@ -11,6 +11,7 @@ import { Stagger } from "@/components/motion/Stagger"
 import { cn } from "@/lib/utils/cn"
 import { createClient } from "@/lib/supabase/client"
 import { formatPKR } from "@/lib/utils/format"
+import { OrderModal } from "@/components/marketplace/OrderModal"
 import { RatingStars } from "@/components/teacher-public/RatingStars"
 import type { Gig, SellerLevel } from "@/types/database"
 
@@ -102,6 +103,8 @@ export default function GigDetailPage() {
   const [gig, setGig] = useState<Gig | null>(null)
   const [seller, setSeller] = useState<GigSellerSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedTier, setSelectedTier] = useState<PackageTier["key"]>("standard")
+  const [orderOpen, setOrderOpen] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -139,6 +142,7 @@ export default function GigDetailPage() {
   }
 
   const tiers = buildTiers(gig)
+  const activeTier = tiers.find((t) => t.key === selectedTier) ?? tiers[0]
 
   return (
     <div className="min-h-screen">
@@ -238,11 +242,23 @@ export default function GigDetailPage() {
             {tiers.map((tier) => (
               <Reveal key={tier.key}>
                 <div
+                  role="radio"
+                  aria-checked={selectedTier === tier.key}
+                  tabIndex={0}
+                  onClick={() => setSelectedTier(tier.key)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      setSelectedTier(tier.key)
+                    }
+                  }}
                   className={cn(
-                    "relative flex h-full flex-col overflow-hidden rounded-lg border p-6 transition-colors duration-150",
-                    tier.featured
-                      ? "border-accent-primary/40 bg-surface-elevated shadow-[0_0_30px_rgba(39,196,160,0.12)]"
-                      : "border-border bg-surface hover:border-line-strong"
+                    "relative flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border p-6 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/50",
+                    selectedTier === tier.key
+                      ? "border-accent-primary bg-surface-elevated shadow-[0_0_30px_rgba(39,196,160,0.12)]"
+                      : tier.featured
+                        ? "border-accent-primary/40 bg-surface"
+                        : "border-border bg-surface hover:border-line-strong"
                   )}
                 >
                   {tier.featured && <div className="absolute inset-x-0 top-0 h-[2px] aurora-bg" />}
@@ -300,11 +316,25 @@ export default function GigDetailPage() {
         )}
 
         <Reveal delay={0.2} className="mt-12">
-          <Button variant="aurora" size="lg" className="w-full sm:w-auto">
-            <ShoppingBag className="h-4 w-4" /> Place Order
+          <Button variant="aurora" size="lg" className="w-full sm:w-auto" onClick={() => setOrderOpen(true)}>
+            <ShoppingBag className="h-4 w-4" /> Place Order · {activeTier.label}
           </Button>
         </Reveal>
       </div>
+
+      <OrderModal
+        open={orderOpen}
+        onClose={() => setOrderOpen(false)}
+        gigId={gig.id}
+        tier={{
+          key: activeTier.key,
+          label: activeTier.label,
+          title: activeTier.title,
+          price: activeTier.price,
+          deliveryDays: activeTier.deliveryDays,
+          revisions: activeTier.revisions,
+        }}
+      />
     </div>
   )
 }

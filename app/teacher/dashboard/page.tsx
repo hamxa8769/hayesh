@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils/cn"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatPKR, formatDateTime, formatDate } from "@/lib/utils/format"
+import { RegistrationFeeCard } from "@/components/shared/RegistrationFeeCard"
 import { EscrowBalanceCard } from "@/components/teacher/EscrowBalanceCard"
 import { TeacherProfileCompletionCard } from "@/components/teacher/TeacherProfileCompletionCard"
 import { computeTeacherBalance, type TeacherBalance } from "@/components/teacher/teacher-balance"
@@ -147,6 +148,8 @@ export default function TeacherDashboard() {
         </h2>
         <p className="mt-1 text-text-muted">Here&apos;s your teaching overview.</p>
       </Reveal>
+
+      <RegistrationFeeCard role="teacher" />
 
       {error ? (
         <div className="rounded-lg border border-accent-danger/30 bg-accent-danger/10 p-6 text-sm text-accent-danger">{error}</div>

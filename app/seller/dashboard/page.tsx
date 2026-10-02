@@ -7,6 +7,7 @@ import { Package, ShoppingBag, Wallet, Plus, UserCog, ArrowRight, Store } from "
 import { JarvisCard } from "@/components/ui/jarvis-card"
 import { JarvisButton } from "@/components/ui/jarvis-button"
 import { Button } from "@/components/ui/button"
+import { RegistrationFeeCard } from "@/components/shared/RegistrationFeeCard"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatPKR } from "@/lib/utils/format"
 import type { Seller } from "@/types/database"
@@ -38,7 +39,7 @@ export default function SellerDashboard() {
         // instead of null data.
         const { data: sellerRow, error: sellerError } = await supabase
           .from("sellers")
-          .select("display_name, tagline, avatar_url, skills, languages, portfolio_urls")
+          .select("id, display_name, tagline, avatar_url, skills, languages, portfolio_urls")
           .eq("user_id", user.id)
           .maybeSingle()
 
@@ -56,8 +57,8 @@ export default function SellerDashboard() {
         }
 
         const [gigs, orders, tx] = await Promise.all([
-          supabase.from("gigs").select("id", { count: "exact", head: true }).eq("seller_id", user.id),
-          supabase.from("gig_orders").select("id", { count: "exact", head: true }).eq("seller_id", user.id),
+          supabase.from("gigs").select("id", { count: "exact", head: true }).eq("seller_id", (sellerRow as { id: string }).id),
+          supabase.from("gig_orders").select("id", { count: "exact", head: true }).eq("seller_id", (sellerRow as { id: string }).id),
           supabase.from("transactions").select("net_amount").eq("payee_id", user.id).eq("status", "completed"),
         ])
 
@@ -89,6 +90,8 @@ export default function SellerDashboard() {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <h2 className="font-display text-2xl font-bold">Seller Dashboard</h2>
       </motion.div>
+
+      <RegistrationFeeCard role="seller" />
 
       {!loading && needsSetup ? (
         <div className="relative overflow-hidden rounded-lg border border-border bg-surface p-8">
