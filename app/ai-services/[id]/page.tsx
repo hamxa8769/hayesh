@@ -1,8 +1,9 @@
 "use client"
 
+import { BackButton } from "@/components/navigation/BackButton"
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Bot, Loader2, RotateCcw, ShieldCheck, Star, Zap } from "lucide-react"
+import { Bot, Loader2, RotateCcw, ShieldCheck, Star, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
@@ -93,12 +94,7 @@ export default function AIServiceDetailPage() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-3xl px-6 py-16 sm:px-10">
-        <button
-          onClick={() => router.back()}
-          className="mb-8 inline-flex items-center gap-2 font-mono text-xs uppercase tracking-[0.1em] text-text-muted transition-colors hover:text-text-primary"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back
-        </button>
+        <BackButton fallbackHref="/ai-services" label="Back" className="mb-8" />
 
         <Reveal>
           <div className="relative overflow-hidden rounded-lg border border-border bg-surface p-8">

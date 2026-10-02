@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import { redirect } from "next/navigation"
-import { Navbar } from "@/components/layout/Navbar"
 import { MyOrders } from "@/components/orders/MyOrders"
 import { createClient } from "@/lib/supabase/server"
 
@@ -19,11 +18,6 @@ export default async function OrdersPage() {
   if (!user) redirect("/auth/login?redirect=/orders")
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <main className="mx-auto max-w-[1100px] px-4 pb-10 pt-24 sm:px-6 lg:px-8">
-        <MyOrders />
-      </main>
-    </div>
+    <MyOrders />
   )
 }

@@ -1,9 +1,10 @@
 "use client"
 
+import { BackButton } from "@/components/navigation/BackButton"
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useParams } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Clock, RotateCcw, ShoppingBag, Star } from "lucide-react"
+import { Clock, RotateCcw, ShoppingBag, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
@@ -99,7 +100,6 @@ function buildTiers(gig: Gig): PackageTier[] {
 
 export default function GigDetailPage() {
   const { id } = useParams()
-  const router = useRouter()
   const [gig, setGig] = useState<Gig | null>(null)
   const [seller, setSeller] = useState<GigSellerSummary | null>(null)
   const [loading, setLoading] = useState(true)
@@ -147,12 +147,7 @@ export default function GigDetailPage() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-5xl px-6 py-16 sm:px-10">
-        <button
-          onClick={() => router.back()}
-          className="mb-8 inline-flex items-center gap-2 font-mono text-xs uppercase tracking-[0.1em] text-text-muted transition-colors hover:text-text-primary"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back
-        </button>
+        <BackButton fallbackHref="/marketplace" label="Back" className="mb-8" />
 
         <Reveal>
           {gig.gallery_urls && gig.gallery_urls.length > 0 && (

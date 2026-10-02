@@ -33,13 +33,13 @@ export default async function CheckoutPage({
   const settings = await getCommerceSettings()
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
+    <div className="mx-auto w-full max-w-3xl">
       <Link
-        href="/explore"
+        href="/orders"
         className="mb-6 inline-flex items-center gap-1.5 text-sm text-text-muted transition-colors hover:text-text-primary"
       >
         <ArrowLeft className="size-4" />
-        Back to explore
+        My orders
       </Link>
       <CheckoutClient
         transaction={transaction}
@@ -47,6 +47,6 @@ export default async function CheckoutPage({
         stripeEnabled={isStripeEnabled()}
         userId={user.id}
       />
-    </main>
+    </div>
   )
 }

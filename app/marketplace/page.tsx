@@ -1,21 +1,23 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import Link from "next/link"
-import { Search, ShoppingBag, Star } from "lucide-react"
+import { Search, ShoppingBag } from "lucide-react"
 import { JarvisInput } from "@/components/ui/jarvis-input"
-import { Badge } from "@/components/ui/badge"
+import { GigCard } from "@/components/marketplace/GigCard"
+import { GigCardSkeleton } from "@/components/cards/GigCard"
+import type { GigCardSeller } from "@/components/cards/GigCard"
 import { Reveal } from "@/components/motion/Reveal"
 import { Stagger } from "@/components/motion/Stagger"
 import { cn } from "@/lib/utils/cn"
 import { createClient } from "@/lib/supabase/client"
-import { formatPKR } from "@/lib/utils/format"
 import type { Gig } from "@/types/database"
 
 const ALL_CATEGORY = "All"
 
+type GigWithSeller = Gig & { sellers: GigCardSeller | null }
+
 export default function MarketplacePage() {
-  const [gigs, setGigs] = useState<Gig[]>([])
+  const [gigs, setGigs] = useState<GigWithSeller[]>([])
   const [search, setSearch] = useState("")
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY)
   const [loading, setLoading] = useState(true)
@@ -24,8 +26,8 @@ export default function MarketplacePage() {
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
-      const { data } = await supabase.from("gigs").select("*").eq("status", "approved").order("created_at", { ascending: false })
-      const rows = (data || []) as Gig[]
+      const { data } = await supabase.from("gigs").select("*, sellers(display_name, avatar_url, level)").eq("status", "approved").order("created_at", { ascending: false })
+      const rows = (data || []) as unknown as GigWithSeller[]
       // Featured status lives on the seller row — second query, then featured sellers' gigs first (stable sort).
       const sellerIds = Array.from(new Set(rows.map((g) => g.seller_id).filter(Boolean)))
       const featured = new Set<string>()
@@ -57,7 +59,7 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-6xl px-6 py-16 sm:px-10">
+      <div className="mx-auto max-w-7xl px-6 py-16 sm:px-10">
         <Reveal className="max-w-2xl">
           <span className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Human Seller Marketplace</span>
           <h1 className="mt-3 text-balance font-display text-4xl font-bold tracking-tight sm:text-5xl">Marketplace</h1>
@@ -95,9 +97,9 @@ export default function MarketplacePage() {
 
         <div className="mt-10">
           {loading ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" aria-label="Loading gigs">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-56 animate-pulse rounded-lg border border-border bg-surface" />
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label="Loading gigs">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <GigCardSkeleton key={i} />
               ))}
             </div>
           ) : filtered.length === 0 ? (
@@ -106,34 +108,10 @@ export default function MarketplacePage() {
               <p className="mt-4 text-text-muted">No gigs found</p>
             </div>
           ) : (
-            <Stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" staggerDelay={0.06}>
+            <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" staggerDelay={0.04}>
               {filtered.map((g) => (
-                <Reveal key={g.id}>
-                  <Link href={`/marketplace/${g.id}`} className="group block h-full">
-                    <div className="relative flex h-full flex-col rounded-lg border border-border bg-surface p-6 transition-all duration-150 hover:-translate-y-0.5 hover:border-line-strong hover:bg-surface-elevated hover:shadow-[0_12px_30px_rgba(0,0,0,0.45),0_0_24px_rgba(39,196,160,0.1)]">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="uppercase tracking-[0.06em]">{g.category}</Badge>
-                          {featuredSellers.has(g.seller_id) && <Badge variant="outline" className="uppercase tracking-[0.06em]">Featured</Badge>}
-                        </div>
-                        {g.average_rating != null && (
-                          <span className="inline-flex items-center gap-1 font-mono text-xs tabular-nums text-text-muted">
-                            <Star className="h-3 w-3 fill-accent-secondary text-accent-secondary" />
-                            {g.average_rating.toFixed(1)}
-                            {g.total_orders != null && <span className="text-text-disabled">({g.total_orders})</span>}
-                          </span>
-                        )}
-                      </div>
-
-                      <h3 className="mt-4 font-display text-lg font-semibold leading-snug text-text-primary">{g.title}</h3>
-                      <p className="mt-2 line-clamp-2 flex-1 text-sm leading-relaxed text-text-muted">{g.description}</p>
-
-                      <div className="mt-6 flex items-end justify-between border-t border-border pt-4">
-                        <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-text-disabled">Starting at</span>
-                        <span className="font-mono text-lg font-semibold tabular-nums text-accent-primary">{formatPKR(g.basic_price_pkr || 0)}</span>
-                      </div>
-                    </div>
-                  </Link>
+                <Reveal key={g.id} className="h-full">
+                  <GigCard gig={g} seller={g.sellers} featured={featuredSellers.has(g.seller_id) || undefined} />
                 </Reveal>
               ))}
             </Stagger>

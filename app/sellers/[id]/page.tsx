@@ -1,8 +1,9 @@
 "use client"
 
+import { BackButton } from "@/components/navigation/BackButton"
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, ShoppingBag } from "lucide-react"
+import { useParams } from "next/navigation"
+import { ShoppingBag } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
 import { Stagger } from "@/components/motion/Stagger"
@@ -49,7 +50,6 @@ function buildStatTiles(seller: Seller): StatTile[] {
 
 export default function SellerDetailPage() {
   const { id } = useParams()
-  const router = useRouter()
   const sellerId = String(id)
   const [seller, setSeller] = useState<Seller | null>(null)
   const [gigs, setGigs] = useState<Gig[]>([])
@@ -99,12 +99,7 @@ export default function SellerDetailPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-4xl px-6 py-16 sm:px-10">
-        <button
-          onClick={() => router.back()}
-          className="mb-8 flex items-center gap-2 text-sm text-text-muted transition-colors duration-150 hover:text-text-primary"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
+        <BackButton fallbackHref="/marketplace" label="Back" className="mb-8" />
 
         {/* Identity header */}
         <Reveal>

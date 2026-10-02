@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Calendar, Users, Wallet, UserCog, Search,
   ShoppingBag, Package, MessageSquare, GraduationCap, Cpu, CreditCard,
   Globe, AlertTriangle, Settings, ChevronLeft, ChevronRight, LogOut, X,
-  Star, Palette, Video, MessagesSquare,
+  Star, Palette, Video, MessagesSquare, Compass,
 } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { createClient } from "@/lib/supabase/client"
@@ -32,6 +32,7 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: Palette, label: "Branding", href: "/admin/branding" },
     { icon: AlertTriangle, label: "Disputes", href: "/admin/disputes" },
     { icon: Settings, label: "Settings", href: "/admin/settings" },
+    { icon: Compass, label: "Explore", href: "/explore" },
   ],
   teacher: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/teacher/dashboard" },
@@ -45,6 +46,7 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: Wallet, label: "Earnings", href: "/teacher/earnings" },
     { icon: UserCog, label: "Profile", href: "/teacher/profile" },
     { icon: AlertTriangle, label: "Support", href: "/teacher/support" },
+    { icon: Compass, label: "Explore", href: "/explore" },
   ],
   parent: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/parent/dashboard" },
@@ -56,6 +58,7 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: Search, label: "Find Teachers", href: "/parent/find-teachers" },
     { icon: Users, label: "Progress", href: "/parent/progress" },
     { icon: CreditCard, label: "Payments", href: "/parent/payments" },
+    { icon: Compass, label: "Explore", href: "/explore" },
   ],
   seller: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/seller/dashboard" },
@@ -66,12 +69,14 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: ShoppingBag, label: "Orders", href: "/seller/orders" },
     { icon: Wallet, label: "Earnings", href: "/seller/earnings" },
     { icon: UserCog, label: "Profile", href: "/seller/profile" },
+    { icon: Compass, label: "Explore", href: "/explore" },
   ],
   buyer: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/buyer/dashboard" },
     { icon: Video, label: "Meetings", href: "/meetings" },
     { icon: Package, label: "Orders", href: "/buyer/orders" },
     { icon: MessagesSquare, label: "Messages", href: "/messages" },
+    { icon: Compass, label: "Explore", href: "/explore" },
   ],
 }
 

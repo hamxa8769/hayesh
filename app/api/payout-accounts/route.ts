@@ -70,7 +70,9 @@ function encryptAccountDetails(values: PayoutAccountValues): { reference: string
     const last4Source = values.iban?.trim() || values.account_number
     return { reference, last4: last4Source.slice(-4) }
   } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : "Encryption is not configured on the server" }
+    // Log the real reason (e.g. FIELD_ENCRYPTION_KEY missing); show a friendly message.
+    console.error("field encryption failed:", e instanceof Error ? e.message : e)
+    return { error: "Bank details can't be saved right now because secure storage isn't configured. Please contact Hayesh support." }
   }
 }
 

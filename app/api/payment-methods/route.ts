@@ -88,7 +88,10 @@ export async function POST(
   try {
     encryptedReference = encryptField(values.account_reference)
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "Encryption is not configured on the server"
+    // Operator misconfiguration (e.g. FIELD_ENCRYPTION_KEY missing): log the
+    // real reason server-side, never show it to the customer.
+    console.error("field encryption failed:", e instanceof Error ? e.message : e)
+    const message = "Bank details can't be saved right now because secure storage isn't configured. Please contact Hayesh support."
     return NextResponse.json({ error: message }, { status: 500 })
   }
 

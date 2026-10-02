@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound, redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { formatCurrency, formatDate } from "@/lib/utils/format"
+import { BackButton } from "@/components/navigation/BackButton"
 import { PrintButton } from "@/components/receipts/PrintButton"
 import type { Transaction } from "@/types/database"
 
@@ -67,7 +68,8 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
   return (
     <main className="min-h-screen bg-neutral-100 px-4 py-8 print:bg-white print:p-0">
       <div className="mx-auto max-w-2xl">
-        <div className="mb-4 flex justify-end print:hidden">
+        <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
+          <BackButton fallbackHref={tx.payer_id === user.id ? "/orders" : "/explore"} className="text-neutral-700 hover:text-neutral-950" />
           {isAvailable && <PrintButton />}
         </div>
 
