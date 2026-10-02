@@ -1,13 +1,16 @@
+import { timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getCommerceSettings } from "@/lib/payments/settings"
 import { createRenewalTransaction } from "@/lib/payments/checkout"
 import { completeGigOrder } from "@/lib/payments/gig-orders"
 import { notifyUser } from "@/lib/notifications"
+import { reconcilePaidOrders } from "@/lib/payments/settle"
 
 /**
  * GET /api/cron/commerce — daily housekeeping (scheduled in vercel.json).
  *
+ *  0. Reconcile paid orders whose activation was interrupted.
  *  1. Auto-complete gig orders delivered more than N days ago (buyer silent).
  *  2. Issue next-month tuition charges 3 days before a period ends.
  *  3. Mark subscriptions past_due once their period has ended unpaid.
@@ -24,14 +27,19 @@ const ABANDONED_CHECKOUT_DAYS = 7
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  const expected = Buffer.from(`Bearer ${secret ?? ""}`)
+  const given = Buffer.from(request.headers.get("authorization") ?? "")
+  if (!secret || given.length !== expected.length || !timingSafeEqual(given, expected)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const admin = createAdminClient()
   const settings = await getCommerceSettings()
   const now = Date.now()
-  const summary = { autoCompleted: 0, renewalsIssued: 0, pastDue: 0, expired: 0 }
+  const summary = { reconciled: 0, autoCompleted: 0, renewalsIssued: 0, pastDue: 0, expired: 0 }
+
+  // 0. Finish any payment whose activation was interrupted.
+  summary.reconciled = await reconcilePaidOrders()
 
   // 1. Auto-complete stale deliveries.
   const deliveredBefore = new Date(now - settings.gigAutoCompleteDays * DAY_MS).toISOString()

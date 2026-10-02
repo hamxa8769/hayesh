@@ -78,6 +78,51 @@ export async function markTransactionPaid(transactionId: string, opts: SettleOpt
   return { ok: true, alreadySettled: false, transaction: paid }
 }
 
+/**
+ * Repairs payments whose activation was interrupted (function timeout,
+ * transient DB error): paid gig/tuition transactions whose order is still
+ * waiting for payment, and completed gig orders whose escrow wasn't
+ * released. Run by the daily cron. Returns how many rows were repaired.
+ */
+export async function reconcilePaidOrders(): Promise<number> {
+  const admin = createAdminClient()
+  let repaired = 0
+
+  const { data: paidGig } = await admin
+    .from("transactions")
+    .select("*, gig_orders!inner(status)")
+    .eq("type", "gig")
+    .eq("status", "processing")
+    .eq("gig_orders.status", "pending")
+    .limit(100)
+  const { data: paidTuition } = await admin
+    .from("transactions")
+    .select("*, subscriptions!inner(status)")
+    .eq("type", "tuition")
+    .eq("status", "completed")
+    .eq("subscriptions.status", "pending_payment")
+    .limit(100)
+  for (const row of [...(paidGig ?? []), ...(paidTuition ?? [])] as Transaction[]) {
+    await activateOrder(row)
+    repaired++
+  }
+
+  const { data: unreleased } = await admin
+    .from("transactions")
+    .select("gig_order_id, gig_orders!inner(status)")
+    .eq("type", "gig")
+    .eq("status", "processing")
+    .eq("gig_orders.status", "completed")
+    .limit(100)
+  for (const row of (unreleased ?? []) as Array<{ gig_order_id: string | null }>) {
+    if (row.gig_order_id) {
+      await releaseGigEscrow(row.gig_order_id)
+      repaired++
+    }
+  }
+  return repaired
+}
+
 /** Applies the business effect of a cleared payment. Never throws. */
 async function activateOrder(tx: Transaction): Promise<void> {
   const admin = createAdminClient()
@@ -87,6 +132,15 @@ async function activateOrder(tx: Transaction): Promise<void> {
     if (tx.type === "tuition" && tx.subscription_id) {
       const { data: sub } = await admin.from("subscriptions").select("*").eq("id", tx.subscription_id).maybeSingle()
       if (!sub) return
+      if (sub.status === "cancelled") {
+        await notifyAdmins({
+          type: "payment_confirmed",
+          title: "Payment for a cancelled tuition plan",
+          message: `Transaction ${tx.reference_code ?? tx.id} was paid but its subscription is cancelled — refund or reactivate manually.`,
+          actionUrl: "/admin/payments",
+        })
+        return
+      }
       const now = new Date()
       // Renewals extend from the current period end; first payments start today.
       const currentEnd = sub.current_period_end ? new Date(sub.current_period_end as string) : null
@@ -103,6 +157,7 @@ async function activateOrder(tx: Transaction): Promise<void> {
           updated_at: now.toISOString(),
         })
         .eq("id", tx.subscription_id)
+        .in("status", ["pending_payment", "active", "past_due"])
 
       await notifyUser({
         userId: payerId,

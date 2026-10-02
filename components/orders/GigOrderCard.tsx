@@ -38,7 +38,8 @@ export function GigOrderCard({ order, transaction, onChanged }: GigOrderCardProp
   const revisionsLeft = used < allowed
   const canDispute = status === "in_progress" || status === "revision_requested" || status === "delivered"
   const awaiting = status === "pending" && isAwaitingPayment(transaction)
-  const files = order.delivery_files ?? []
+  // Only http(s) links are ever rendered — never javascript:/data: URLs.
+  const files = (order.delivery_files ?? []).filter((u) => /^https?:\/\//i.test(u))
 
   const accept = async () => {
     setAccepting(true)

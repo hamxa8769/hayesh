@@ -21,7 +21,10 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("deliver"),
     message: z.string().trim().min(5, "Add a short delivery note").max(5000),
-    files: z.array(z.string().url().max(1000)).max(10).default([]),
+    files: z
+      .array(z.string().url().max(1000).refine((u) => /^https?:\/\//i.test(u), "Links must start with http:// or https://"))
+      .max(10)
+      .default([]),
   }),
   z.object({ action: z.literal("accept") }),
   z.object({ action: z.literal("revision"), message: z.string().trim().min(5, "Tell the seller what to change").max(3000) }),

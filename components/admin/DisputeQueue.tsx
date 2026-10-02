@@ -158,7 +158,7 @@ export function DisputeQueue() {
                       )}
                       {item.delivery_files && item.delivery_files.length > 0 && (
                         <ul className="mt-1 space-y-1">
-                          {item.delivery_files.map((url, idx) => (
+                          {item.delivery_files.filter((u) => /^https?:\/\//i.test(u)).map((url, idx) => (
                             <li key={`${url}-${idx}`}>
                               <a
                                 href={url}

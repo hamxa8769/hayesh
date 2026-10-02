@@ -20,7 +20,7 @@ export default async function CheckoutPage({
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) redirect("/auth/login?redirect=/checkout/" + id)
+  if (!user) redirect("/auth/login?redirect=" + encodeURIComponent("/checkout/" + id))
 
   const { data } = await supabase
     .from("transactions")

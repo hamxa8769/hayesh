@@ -31,6 +31,15 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   const base = getSiteUrl()
   try {
+    // Reuse a still-open session so one transaction can't be charged twice.
+    if (tx.processor_ref?.startsWith("cs_")) {
+      const existing = await getStripe().checkout.sessions.retrieve(tx.processor_ref)
+      if (existing.status === "open" && existing.url) return NextResponse.json({ url: existing.url })
+      if (existing.status === "complete") {
+        return NextResponse.json({ error: "This payment is already being confirmed" }, { status: 409 })
+      }
+    }
+
     const session = await getStripe().checkout.sessions.create({
       mode: "payment",
       customer_email: user.email || undefined,
@@ -47,6 +56,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
           },
         },
       ],
+      expires_at: Math.floor(Date.now() / 1000) + 60 * 60,
       success_url: `${base}/checkout/${tx.id}?stripe=success`,
       cancel_url: `${base}/checkout/${tx.id}?stripe=cancelled`,
     })

@@ -15,6 +15,8 @@ if (typeof window !== "undefined") {
  * system_prompt is never selectable by buyers (migration 013).
  */
 
+const STALE_CLAIM_MS = 5 * 60 * 1000
+
 interface FulfillOrderRow {
   id: string
   service_id: string
@@ -91,12 +93,14 @@ export async function fulfilAIOrder(orderId: string): Promise<FulfilResult> {
   }
 
   // Atomically claim the order — only one request can move it out of
-  // 'pending' so the model never runs twice for the same order.
+  // 'pending' so the model never runs twice for the same order. A claim
+  // older than STALE_CLAIM_MS (function killed mid-generation) is reclaimable.
+  const staleBefore = new Date(Date.now() - STALE_CLAIM_MS).toISOString()
   const { data: claimedRows, error: claimError } = await adminClient
     .from("ai_orders")
-    .update({ status: "in_progress" })
+    .update({ status: "in_progress", updated_at: new Date().toISOString() })
     .eq("id", orderId)
-    .eq("status", "pending")
+    .or(`status.eq.pending,and(status.eq.in_progress,updated_at.lt.${staleBefore})`)
     .select("id")
 
   if (claimError) return { ok: false, error: claimError.message, httpStatus: 400 }

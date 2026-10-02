@@ -63,7 +63,9 @@ supabase-migrations/018-meeting-waiting-room.sql
 supabase-migrations/019-commerce-checkout.sql      ← required for checkout
 ```
 
-All migrations are idempotent (safe to re-run).
+All migrations are idempotent (safe to re-run). **If you ever re-run 013,
+re-run 019 after it** — 013 re-grants browser INSERT on `ai_orders`, which
+019 revokes (orders must be created by `/api/checkout`).
 
 ### 3.2 Vercel environment variables (Production)
 Required:
@@ -139,3 +141,12 @@ appears under Vercel → Settings → Cron Jobs after deploy.
 5. Error monitoring (Sentry) + uptime check on `/`.
 6. Playwright smoke tests for the checkout flows above, run in CI.
 7. Voice translation pipeline.
+
+### Known hardening follow-ups (from the security review)
+* Rate limiting is in-memory per serverless instance — move checkout/proof
+  limits to Upstash Redis when traffic grows.
+* A buyer can sit in `revision_requested` indefinitely and either party can
+  open a dispute at any time; add a revision timeout policy once real
+  dispute data exists.
+* Payees can read the payer's bank TID on their own transactions (RLS from
+  migration 006); restrict with a view if that becomes a concern.
