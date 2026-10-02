@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     type: "dispute_resolved",
     title: "Dispute resolved",
     message: `"${order.gig_title ?? "Your order"}": ${resolution === "refund" ? "refund approved" : "resolved in the seller's favour"}. ${note}`,
-    actionUrl: "/buyer/orders",
+    actionUrl: "/orders",
   })
   return NextResponse.json({ ok: true })
 }

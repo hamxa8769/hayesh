@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Calendar, Users, Wallet, UserCog, Search,
   ShoppingBag, Package, MessageSquare, GraduationCap, Cpu, CreditCard,
   Globe, AlertTriangle, Settings, ChevronLeft, ChevronRight, LogOut, X,
-  Star, Palette, Video,
+  Star, Palette, Video, MessagesSquare,
 } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { createClient } from "@/lib/supabase/client"
@@ -19,6 +19,7 @@ const navItems: Record<UserRole, NavItem[]> = {
   admin: [
     { icon: LayoutDashboard, label: "Overview", href: "/admin" },
     { icon: Video, label: "Meetings", href: "/meetings" },
+    { icon: MessagesSquare, label: "Messages", href: "/messages" },
     { icon: MessageSquare, label: "Requests", href: "/admin/requests" },
     { icon: AlertTriangle, label: "Support", href: "/admin/support" },
     { icon: GraduationCap, label: "Teachers", href: "/admin/teachers" },
@@ -35,6 +36,8 @@ const navItems: Record<UserRole, NavItem[]> = {
   teacher: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/teacher/dashboard" },
     { icon: Video, label: "Meetings", href: "/meetings" },
+    { icon: MessagesSquare, label: "Messages", href: "/messages" },
+    { icon: Package, label: "My Orders", href: "/orders" },
     { icon: Calendar, label: "Sessions", href: "/teacher/sessions" },
     { icon: Users, label: "Students", href: "/teacher/students" },
     { icon: GraduationCap, label: "Assignments", href: "/teacher/assignments" },
@@ -46,6 +49,8 @@ const navItems: Record<UserRole, NavItem[]> = {
   parent: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/parent/dashboard" },
     { icon: Video, label: "Meetings", href: "/meetings" },
+    { icon: MessagesSquare, label: "Messages", href: "/messages" },
+    { icon: Package, label: "My Orders", href: "/orders" },
     { icon: GraduationCap, label: "My Children", href: "/parent/students" },
     { icon: MessageSquare, label: "Requests", href: "/parent/requests" },
     { icon: Search, label: "Find Teachers", href: "/parent/find-teachers" },
@@ -55,6 +60,8 @@ const navItems: Record<UserRole, NavItem[]> = {
   seller: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/seller/dashboard" },
     { icon: Video, label: "Meetings", href: "/meetings" },
+    { icon: MessagesSquare, label: "Messages", href: "/messages" },
+    { icon: Package, label: "My Orders", href: "/orders" },
     { icon: Package, label: "My Gigs", href: "/seller/gigs" },
     { icon: ShoppingBag, label: "Orders", href: "/seller/orders" },
     { icon: Wallet, label: "Earnings", href: "/seller/earnings" },
@@ -64,7 +71,7 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: LayoutDashboard, label: "Dashboard", href: "/buyer/dashboard" },
     { icon: Video, label: "Meetings", href: "/meetings" },
     { icon: Package, label: "Orders", href: "/buyer/orders" },
-    { icon: MessageSquare, label: "Messages", href: "/buyer/messages" },
+    { icon: MessagesSquare, label: "Messages", href: "/messages" },
   ],
 }
 

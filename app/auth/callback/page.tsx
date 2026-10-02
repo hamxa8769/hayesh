@@ -57,8 +57,12 @@ function CallbackContent() {
         }
         if (!role) await new Promise((r) => setTimeout(r, 400))
       }
-      const explicitRedirect = redirectTo && redirectTo !== "/" ? redirectTo : undefined
-      window.location.href = (role && roleMap[role]) || explicitRedirect || "/"
+      // Same-origin relative paths only (never "//evil.com").
+      const safeRedirect =
+        redirectTo && redirectTo !== "/" && redirectTo.startsWith("/") && !redirectTo.startsWith("//") && !redirectTo.startsWith("/\\")
+          ? redirectTo
+          : undefined
+      window.location.href = safeRedirect || (role && roleMap[role]) || "/"
     }
     handle()
   }, [redirectTo, router, searchParams])

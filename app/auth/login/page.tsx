@@ -98,8 +98,13 @@ function LoginForm() {
       }
       if (!role) await new Promise((r) => setTimeout(r, 350))
     }
-    const explicitRedirect = redirectTo && redirectTo !== "/" ? redirectTo : undefined
-    window.location.href = (role && roleMap[role]) || explicitRedirect || "/"
+    // Return the user to where they were (checkout, a teacher profile, …).
+    // Only same-origin relative paths are honoured — never "//evil.com".
+    const safeRedirect =
+      redirectTo && redirectTo !== "/" && redirectTo.startsWith("/") && !redirectTo.startsWith("//") && !redirectTo.startsWith("/\\")
+        ? redirectTo
+        : undefined
+    window.location.href = safeRedirect || (role && roleMap[role]) || "/"
   }
 
   const signInWithGoogle = async () => {

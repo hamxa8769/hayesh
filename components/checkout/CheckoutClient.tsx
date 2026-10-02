@@ -47,7 +47,7 @@ const POLL_INTERVAL_MS = 4000
 const POLL_MAX_MS = 60000
 
 function nextDestination(type: string): { href: string; label: string } {
-  if (type === "gig" || type === "ai_service") return { href: "/buyer/orders", label: "View my orders" }
+  if (type === "gig" || type === "ai_service") return { href: "/orders", label: "View my orders" }
   if (type === "tuition") return { href: "/parent/payments", label: "Go to payments" }
   return { href: "/teacher/dashboard", label: "Go to dashboard" }
 }
@@ -196,6 +196,9 @@ export function CheckoutClient({ transaction: tx, accounts, stripeEnabled, userI
           <Button asChild variant="aurora" size="lg">
             <Link href={dest.href}>{dest.label}</Link>
           </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/receipts/${tx.id}`}>Download receipt</Link>
+          </Button>
         </div>
       )}
 
@@ -290,6 +293,18 @@ export function CheckoutClient({ transaction: tx, accounts, stripeEnabled, userI
           )}
         </section>
       )}
+
+      <p className="text-xs text-text-muted">
+        By paying you agree to our{" "}
+        <Link href="/terms" className="underline hover:text-text-primary">
+          Terms of Service
+        </Link>{" "}
+        and{" "}
+        <Link href="/refund-policy" className="underline hover:text-text-primary">
+          Refund Policy
+        </Link>
+        .
+      </p>
 
       <p className="flex items-start gap-2 text-xs text-text-muted">
         <ShieldCheck className="mt-0.5 size-4 shrink-0" />

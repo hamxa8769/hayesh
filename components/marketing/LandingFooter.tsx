@@ -33,13 +33,22 @@ const FOOTER_COLUMNS: FooterColumn[] = [
       { label: "Seller sign in", href: "/auth/login" },
     ],
   },
+  {
+    title: "Company",
+    links: [
+      { label: "Terms of Service", href: "/terms" },
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Refund policy", href: "/refund-policy" },
+      { label: "Contact", href: "/contact" },
+    ],
+  },
 ]
 
 export function LandingFooter() {
   return (
     <footer className="border-t border-border bg-surface/40">
       <div className="mx-auto w-full max-w-[1200px] px-6 py-16">
-        <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr]">
+        <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr]">
           <div className="max-w-xs">
             <span className="aurora-text font-display text-xl font-bold">HAYESH</span>
             <p className="mt-3 text-sm leading-relaxed text-text-muted">

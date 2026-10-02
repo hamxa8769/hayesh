@@ -88,7 +88,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         type: "order_delivered",
         title: "Your order was delivered",
         message: `The seller delivered "${title}". Review it and accept, or request a revision.`,
-        actionUrl: "/buyer/orders",
+        actionUrl: "/orders",
       })
       break
     }
@@ -138,7 +138,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           type: "order_disputed",
           title: "Order under review",
           message: `"${title}" is under dispute review by Hayesh. We'll be in touch.`,
-          actionUrl: isBuyer ? "/seller/orders" : "/buyer/orders",
+          actionUrl: isBuyer ? "/seller/orders" : "/orders",
         })
       }
       break

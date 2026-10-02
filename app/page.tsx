@@ -8,6 +8,7 @@ import { SellerShowcase } from "@/components/marketing/SellerShowcase"
 import { AIStudioSection } from "@/components/marketing/AIStudioSection"
 import { PricingModel } from "@/components/marketing/PricingModel"
 import { HowItWorks } from "@/components/marketing/HowItWorks"
+import { TrustSection } from "@/components/marketing/TrustSection"
 import { CategoryStrip } from "@/components/marketing/CategoryStrip"
 import { CtaBand } from "@/components/marketing/CtaBand"
 import { LandingFooter } from "@/components/marketing/LandingFooter"
@@ -28,6 +29,7 @@ export default function HomePage() {
       <AIStudioSection />
       <PricingModel />
       <HowItWorks />
+      <TrustSection />
       <CategoryStrip />
       <CtaBand />
       <LandingFooter />

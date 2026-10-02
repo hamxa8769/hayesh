@@ -29,6 +29,40 @@ function getHome(role: UserRole): string {
   return homes[role] || '/'
 }
 
+// ── Maintenance mode ────────────────────────────────────────
+// platform_settings.maintenance_mode is public-readable; cache it briefly so
+// every request doesn't cost a database round trip.
+const MAINTENANCE_CACHE_MS = 30_000
+let maintenanceCache: { value: boolean; at: number } | null = null
+
+// Paths that keep working during maintenance (admins sign in, payment
+// webhooks and cron keep settling money, the maintenance page itself).
+const MAINTENANCE_EXEMPT = ['/maintenance', '/auth', '/admin', '/api/webhooks', '/api/cron', '/api/profile']
+
+async function isMaintenanceOn(): Promise<boolean> {
+  const now = Date.now()
+  if (maintenanceCache && now - maintenanceCache.at < MAINTENANCE_CACHE_MS) return maintenanceCache.value
+  try {
+    const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data } = await anon.from('platform_settings').select('value').eq('key', 'maintenance_mode').maybeSingle()
+    const value = data?.value === true || data?.value === 'true'
+    maintenanceCache = { value, at: now }
+    return value
+  } catch {
+    return maintenanceCache?.value ?? false
+  }
+}
+
+async function isAdminUser(userId: string): Promise<boolean> {
+  const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  const { data } = await admin.from('profiles').select('role').eq('id', userId).maybeSingle()
+  return data?.role === 'admin'
+}
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
 
@@ -48,6 +82,16 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
+
+  const path = request.nextUrl.pathname
+  if (!MAINTENANCE_EXEMPT.some((p) => path === p || path.startsWith(p + '/')) && (await isMaintenanceOn())) {
+    if (!user || !(await isAdminUser(user.id))) {
+      if (path.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Hayesh is under maintenance. Please try again shortly.' }, { status: 503 })
+      }
+      return NextResponse.rewrite(new URL('/maintenance', request.url), { status: 503 })
+    }
+  }
 
   // Signed-out visitors get the marketing landing page at "/". A signed-in user
   // gets the /explore marketplace instead — their role dashboard is still one
@@ -113,6 +157,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // "/" is matched so a signed-in visitor can be sent to /explore.
-  matcher: ['/', '/checkout/:path*', '/admin/:path*', '/teacher/:path*', '/parent/:path*', '/seller/:path*', '/buyer/:path*'],
+  // Every route except static assets, so maintenance mode applies site-wide;
+  // role gating below only acts on the protected prefixes.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)'],
 }

@@ -363,6 +363,15 @@ export default function ParentPaymentsPage() {
                     <Link href={`/checkout/${tx.id}`} className="text-xs text-accent-secondary hover:underline">
                       View
                     </Link>
+                    {tx.status !== "failed" && (
+                      <Link
+                        href={`/receipts/${tx.id}`}
+                        target="_blank"
+                        className="text-xs text-accent-secondary hover:underline"
+                      >
+                        Receipt
+                      </Link>
+                    )}
                   </div>
                 </div>
               )

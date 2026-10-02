@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
-import { Menu, X, LayoutDashboard, LogOut, CalendarClock } from "lucide-react"
+import { Menu, X, LayoutDashboard, LogOut, CalendarClock, Package, MessageSquare } from "lucide-react"
 import { JarvisButton } from "@/components/ui/jarvis-button"
 import { ThemeToggle } from "@/components/ui/ThemeToggle"
 import { NotificationBell } from "@/components/notifications/NotificationBell"
@@ -165,6 +165,20 @@ export function Navbar() {
                       >
                         <CalendarClock className="h-4 w-4" /> Meetings
                       </Link>
+                      <Link
+                        href="/orders"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-text-muted transition-colors hover:bg-surface-elevated hover:text-text-primary"
+                      >
+                        <Package className="h-4 w-4" /> My Orders
+                      </Link>
+                      <Link
+                        href="/messages"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-2.5 text-sm text-text-muted transition-colors hover:bg-surface-elevated hover:text-text-primary"
+                      >
+                        <MessageSquare className="h-4 w-4" /> Messages
+                      </Link>
                       <button
                         onClick={handleSignOut}
                         className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-text-muted transition-colors hover:bg-accent-danger/10 hover:text-accent-danger"
@@ -221,6 +235,16 @@ export function Navbar() {
                     <Link href="/meetings" onClick={() => setMobileOpen(false)}>
                       <JarvisButton variant="secondary" size="sm" className="w-full">
                         <CalendarClock className="h-4 w-4" /> Meetings
+                      </JarvisButton>
+                    </Link>
+                    <Link href="/orders" onClick={() => setMobileOpen(false)}>
+                      <JarvisButton variant="secondary" size="sm" className="w-full">
+                        <Package className="h-4 w-4" /> My Orders
+                      </JarvisButton>
+                    </Link>
+                    <Link href="/messages" onClick={() => setMobileOpen(false)}>
+                      <JarvisButton variant="secondary" size="sm" className="w-full">
+                        <MessageSquare className="h-4 w-4" /> Messages
                       </JarvisButton>
                     </Link>
                     <JarvisButton variant="danger" size="sm" className="w-full" onClick={handleSignOut}>

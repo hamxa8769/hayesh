@@ -675,3 +675,15 @@ export type TableInsert<T> = Omit<T, 'id' | 'created_at' | 'updated_at'> &
   Partial<Pick<T, Extract<'id', keyof T>>> &
   Partial<Pick<T, Extract<'created_at', keyof T>>> &
   Partial<Pick<T, Extract<'updated_at', keyof T>>>;
+
+/** public.conversations — messaging thread between two related profiles (participant_a < participant_b) */
+export interface Conversation {
+  id: string;
+  participant_a: string;
+  participant_b: string;
+  context: 'order' | 'tuition' | 'support';
+  gig_order_id: string | null;
+  subscription_id: string | null;
+  last_message_at: string | null;
+  created_at: string | null;
+}

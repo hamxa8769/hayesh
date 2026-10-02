@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils/cn"
 import { formatCurrency, formatDate } from "@/lib/utils/format"
 import { orderAmount, orderStatusMeta, postJson } from "@/components/orders/order-status"
+import { MessageOrderButton } from "@/components/messages/MessageOrderButton"
 import { OrderActionModal, type OrderActionValues } from "@/components/orders/OrderActionModal"
 import type { GigOrder } from "@/types/database"
 
@@ -28,6 +29,7 @@ export function SellerOrderCard({ order, onChanged }: SellerOrderCardProps) {
   const due = order.delivery_due_at ? new Date(order.delivery_due_at) : null
   const isActive = status === "in_progress" || status === "revision_requested"
   const overdue = isActive && due !== null && due.getTime() < Date.now()
+  const canMessage = status !== "pending" && status !== "cancelled"
   const canDeliver = isActive
   const canDispute = isActive || status === "delivered"
   const used = order.revisions_used ?? 0
@@ -101,8 +103,9 @@ export function SellerOrderCard({ order, onChanged }: SellerOrderCardProps) {
         </p>
       )}
 
-      {(canDeliver || canDispute) && (
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
+      {(canDeliver || canDispute || canMessage) && (
+        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+          {canMessage && <MessageOrderButton orderId={order.id} label="Message buyer" />}
           {canDispute && (
             <Button type="button" variant="ghost" size="sm" onClick={() => setModal("dispute")}>
               Open dispute

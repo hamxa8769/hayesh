@@ -202,7 +202,7 @@ async function activateOrder(tx: Transaction): Promise<void> {
         type: "payment_confirmed",
         title: "Order started",
         message: `Payment confirmed for "${order.gig_title ?? "your order"}". Delivery due ${due.toDateString()}.`,
-        actionUrl: "/buyer/orders",
+        actionUrl: "/orders",
       })
       if (tx.payee_id) {
         await notifyUser({
@@ -222,7 +222,7 @@ async function activateOrder(tx: Transaction): Promise<void> {
         type: "payment_confirmed",
         title: "Payment confirmed",
         message: "Your HayeshAI Studio order is being generated. You'll find the result in My Orders.",
-        actionUrl: "/buyer/orders",
+        actionUrl: "/orders",
       })
       const result = await fulfilAIOrder(tx.ai_order_id)
       if (result.ok) {
@@ -231,7 +231,7 @@ async function activateOrder(tx: Transaction): Promise<void> {
           type: "order_delivered",
           title: "Your AI order is ready",
           message: "HayeshAI Studio has delivered your order.",
-          actionUrl: "/buyer/orders",
+          actionUrl: "/orders",
         })
       }
       return

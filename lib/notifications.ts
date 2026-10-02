@@ -1,4 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin"
+import { isEmailEnabled, sendEmail } from "@/lib/email/send"
+import { renderNotificationEmail } from "@/lib/email/templates"
 
 if (typeof window !== "undefined") {
   throw new Error("lib/notifications.ts must never be imported client-side")
@@ -40,6 +42,34 @@ export type NotificationType =
   | "subscription_renewal_due"
   | "subscription_past_due"
   | "registration_paid"
+  | "message_received"
+
+/** Money / order lifecycle types that are also delivered by email. */
+const EMAIL_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set<NotificationType>([
+  "payment_confirmed",
+  "payment_rejected",
+  "order_received",
+  "order_delivered",
+  "order_completed",
+  "order_revision",
+  "order_disputed",
+  "dispute_resolved",
+  "subscription_activated",
+  "subscription_renewal_due",
+  "subscription_past_due",
+  "registration_paid",
+  "student_request_assigned",
+  "demo_booked",
+  "meeting_invite",
+])
+
+/** Admin fan-outs that are also emailed (everything else is in-app only). */
+const ADMIN_EMAIL_TYPES: ReadonlySet<NotificationType> = new Set<NotificationType>([
+  "payment_submitted",
+  "order_disputed",
+])
+
+const MAX_ADMIN_EMAILS = 10
 
 export interface NotificationResult {
   ok: boolean
@@ -69,6 +99,25 @@ interface NotifyTeacherByTeacherIdParams {
   actionUrl?: string
 }
 
+interface EmailRecipient {
+  email: string | null
+  full_name: string | null
+}
+
+async function emailRecipient(
+  recipient: EmailRecipient,
+  content: { title: string; message: string; actionUrl?: string }
+): Promise<void> {
+  if (!recipient.email) return
+  const rendered = renderNotificationEmail({
+    title: content.title,
+    message: content.message,
+    actionUrl: content.actionUrl,
+    recipientName: recipient.full_name,
+  })
+  await sendEmail({ to: recipient.email, ...rendered })
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   if (typeof error === "string") return error
@@ -91,6 +140,21 @@ export async function notifyUser(params: NotifyUserParams): Promise<Notification
       return { ok: false, error: error.message }
     }
 
+    if (EMAIL_NOTIFICATION_TYPES.has(params.type) && isEmailEnabled()) {
+      try {
+        const { data: profile } = await admin
+          .from("profiles")
+          .select("email, full_name")
+          .eq("id", params.userId)
+          .maybeSingle()
+        if (profile) {
+          await emailRecipient(profile as EmailRecipient, params)
+        }
+      } catch (emailError: unknown) {
+        console.error("[notifications] email delivery failed:", getErrorMessage(emailError))
+      }
+    }
+
     return { ok: true }
   } catch (error: unknown) {
     return { ok: false, error: getErrorMessage(error) }
@@ -107,7 +171,7 @@ export async function notifyAdmins(params: NotifyAdminsParams): Promise<Notifica
 
     const { data: admins, error: lookupError } = await admin
       .from("profiles")
-      .select("id")
+      .select("id, email, full_name")
       .eq("role", "admin")
 
     if (lookupError) {
@@ -118,7 +182,7 @@ export async function notifyAdmins(params: NotifyAdminsParams): Promise<Notifica
       return { ok: true }
     }
 
-    const rows = (admins as Array<{ id: string }>).map((row) => ({
+    const rows = (admins as Array<{ id: string } & EmailRecipient>).map((row) => ({
       user_id: row.id,
       type: params.type,
       title: params.title,
@@ -130,6 +194,20 @@ export async function notifyAdmins(params: NotifyAdminsParams): Promise<Notifica
 
     if (insertError) {
       return { ok: false, error: insertError.message }
+    }
+
+    if (ADMIN_EMAIL_TYPES.has(params.type) && isEmailEnabled()) {
+      try {
+        const recipients = (admins as Array<{ id: string } & EmailRecipient>).slice(
+          0,
+          MAX_ADMIN_EMAILS
+        )
+        for (const recipient of recipients) {
+          await emailRecipient(recipient, params)
+        }
+      } catch (emailError: unknown) {
+        console.error("[notifications] admin email delivery failed:", getErrorMessage(emailError))
+      }
     }
 
     return { ok: true }

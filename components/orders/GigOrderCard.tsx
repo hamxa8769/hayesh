@@ -14,6 +14,7 @@ import {
   postJson,
   type OrderTransaction,
 } from "@/components/orders/order-status"
+import { MessageOrderButton } from "@/components/messages/MessageOrderButton"
 import { OrderActionModal, type OrderActionValues } from "@/components/orders/OrderActionModal"
 import type { GigOrder } from "@/types/database"
 
@@ -37,6 +38,7 @@ export function GigOrderCard({ order, transaction, onChanged }: GigOrderCardProp
   const allowed = order.revisions_allowed ?? 0
   const revisionsLeft = used < allowed
   const canDispute = status === "in_progress" || status === "revision_requested" || status === "delivered"
+  const canMessage = status !== "pending" && status !== "cancelled"
   const awaiting = status === "pending" && isAwaitingPayment(transaction)
   // Only http(s) links are ever rendered — never javascript:/data: URLs.
   const files = (order.delivery_files ?? []).filter((u) => /^https?:\/\//i.test(u))
@@ -176,11 +178,14 @@ export function GigOrderCard({ order, transaction, onChanged }: GigOrderCardProp
         </p>
       )}
 
-      {canDispute && (
-        <div className="mt-3 flex justify-end">
-          <Button type="button" variant="ghost" size="sm" onClick={() => setModal("dispute")}>
-            Open dispute
-          </Button>
+      {(canDispute || canMessage) && (
+        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+          {canMessage && <MessageOrderButton orderId={order.id} label="Message seller" />}
+          {canDispute && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setModal("dispute")}>
+              Open dispute
+            </Button>
+          )}
         </div>
       )}
 
