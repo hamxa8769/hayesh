@@ -15,6 +15,9 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   /* Optimized for Vercel deployment */
   poweredByHeader: false,
+  // Lets a local `next dev` use its own output folder (NEXT_DIST_DIR=.next-dev)
+  // so it never overwrites a production build being served from `.next`.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   images: {
     remotePatterns: [
       {

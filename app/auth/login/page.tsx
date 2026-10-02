@@ -124,7 +124,8 @@ function LoginForm() {
             <p className="mt-2 text-sm text-text-muted">Welcome back to your account</p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* method="post": if JavaScript fails to load, a native submit must never put the password in the URL. */}
+          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <AuthField label="Email" type="email" placeholder="you@example.com" autoComplete="email"
               icon={<Mail className="h-4 w-4" />} error={errors.email?.message} {...register("email")} />
             <AuthField label="Password" type="password" placeholder="••••••••" autoComplete="current-password"

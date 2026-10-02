@@ -38,7 +38,7 @@
 |---|---|
 | Checkout page with reference code, payee accounts, proof upload | ✅ |
 | Admin payment verification (confirm / reject with reason) | ✅ |
-| Stripe card payments (auto-enabled when keys are set; amount-verified webhook) | ✅ (needs keys) |
+| Stripe card payments (auto-enabled when keys are set; amount-verified webhook) | ✅ built, **switched off for launch** (no keys set) |
 | Monthly tuition: enrol → pay → active → renewal charge 3 days before period end → past-due | ✅ |
 | Gig orders: pay → deliver → revision → accept / dispute; **escrow** until acceptance (auto-accept after N days) | ✅ |
 | AI Studio: pay → generated automatically → revisions; 6 launch services seeded | ✅ |
@@ -99,7 +99,16 @@
 
 ---
 
-## 4. What YOU must do before going public
+## 4. Launch decision: manual payments only
+
+For launch, customers pay by **bank transfer, Raast/IBFT, JazzCash or Easypaisa**
+and upload a screenshot; an admin confirms it in **Admin → Payments**. Card
+payments (Stripe) stay hidden simply by not setting `STRIPE_SECRET_KEY` /
+`STRIPE_WEBHOOK_SECRET` — the code is ready and appears automatically the
+day those keys are added. Simpaisa (automatic JazzCash/Easypaisa
+confirmation) is the planned upgrade once a merchant account exists.
+
+## 4b. What YOU must do before going public
 
 1. **Supabase → SQL Editor:** run `supabase-migrations/016` → `024` in order (020 updated — use the latest file).
 2. **Vercel → Settings → Environment Variables**, then redeploy:
