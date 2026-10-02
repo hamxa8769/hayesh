@@ -29,6 +29,49 @@ create table if not exists public.conversations (
   check (participant_a < participant_b)
 );
 
+-- Some projects already have a `conversations` table from earlier
+-- experiments, in which case CREATE TABLE IF NOT EXISTS above is skipped.
+-- Bring any such table up to the shape this migration needs. New columns
+-- are added nullable so existing rows (if any) don't block the upgrade;
+-- legacy rows simply won't match the participant policies below.
+alter table public.conversations add column if not exists participant_a   uuid references public.profiles(id) on delete cascade;
+alter table public.conversations add column if not exists participant_b   uuid references public.profiles(id) on delete cascade;
+alter table public.conversations add column if not exists context         text;
+alter table public.conversations add column if not exists gig_order_id    uuid references public.gig_orders(id) on delete set null;
+alter table public.conversations add column if not exists subscription_id uuid references public.subscriptions(id) on delete set null;
+alter table public.conversations add column if not exists last_message_at timestamptz default now();
+alter table public.conversations add column if not exists created_at      timestamptz default now();
+
+-- A legacy table may also carry required columns the app never fills
+-- (no app code used `conversations` before this migration). Relax them so
+-- server inserts succeed.
+do $$
+declare col record;
+begin
+  for col in
+    select column_name from information_schema.columns
+     where table_schema = 'public' and table_name = 'conversations'
+       and is_nullable = 'NO' and column_default is null
+       and column_name not in ('id', 'participant_a', 'participant_b', 'context')
+  loop
+    execute format('alter table public.conversations alter column %I drop not null', col.column_name);
+  end loop;
+end $$;
+
+do $$ begin
+  alter table public.conversations
+    add constraint conversations_context_check
+    check (context in ('order', 'tuition', 'support')) not valid;
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  alter table public.conversations
+    add constraint conversations_participant_order_check
+    check (participant_a < participant_b) not valid;
+exception when duplicate_object then null;
+end $$;
+
 create unique index if not exists conversations_unique_pair_context
   on public.conversations (
     participant_a, participant_b, context,
