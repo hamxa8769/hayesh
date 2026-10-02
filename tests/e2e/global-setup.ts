@@ -28,11 +28,17 @@ export default async function globalSetup(): Promise<void> {
   psql(`
     truncate public.profiles, public.ai_services cascade;
     delete from auth.users where email like '%@e2e.hayesh.test';
-    update public.platform_settings set value = 'false' where key = 'maintenance_mode';
-    update public.platform_settings set value = '"Meezan Bank"' where key = 'payment_bank_name';
-    update public.platform_settings set value = '"Hayesh Pvt Ltd"' where key = 'payment_account_title';
-    update public.platform_settings set value = '"0123456789"' where key = 'payment_account_number';
-    update public.platform_settings set value = '"03001234567"' where key = 'payment_jazzcash_number';
+    -- platform_settings.updated_by references profiles, so the CASCADE above
+    -- empties it too: restore every setting the app reads.
+    insert into public.platform_settings (key, value) values
+      ('teacher_commission_pct', '15'), ('seller_commission_pct', '18'),
+      ('teacher_registration_fee_pkr', '2000'), ('seller_registration_fee_pkr', '1000'),
+      ('maintenance_mode', 'false'), ('gig_auto_complete_days', '3'),
+      ('payment_bank_name', '"Meezan Bank"'), ('payment_account_title', '"Hayesh Pvt Ltd"'),
+      ('payment_account_number', '"0123456789"'), ('payment_iban', '""'),
+      ('payment_jazzcash_number', '"03001234567"'), ('payment_easypaisa_number', '""'),
+      ('payment_instructions', '""')
+    on conflict (key) do update set value = excluded.value;
   `)
 
   const admin = createClient(E2E_SUPABASE_URL, E2E_SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
