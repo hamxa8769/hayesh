@@ -37,7 +37,7 @@ let maintenanceCache: { value: boolean; at: number } | null = null
 
 // Paths that keep working during maintenance (admins sign in, payment
 // webhooks and cron keep settling money, the maintenance page itself).
-const MAINTENANCE_EXEMPT = ['/maintenance', '/auth', '/admin', '/api/webhooks', '/api/cron', '/api/profile']
+const MAINTENANCE_EXEMPT = ['/maintenance', '/auth', '/admin', '/api/webhooks', '/api/cron', '/api/profile', '/api/health']
 
 async function isMaintenanceOn(): Promise<boolean> {
   const now = Date.now()

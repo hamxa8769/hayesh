@@ -22,11 +22,18 @@ built, how money moves, the exact go-live steps, and what is still left.
 | **Monthly tuition** (enrol → pay → active → renewal) | ✅ **New** | Daily cron issues renewal charges 3 days before period end and marks lapsed plans `past_due`. |
 | **Registration fees** (teachers / sellers) | ✅ **New** | Card on teacher & seller dashboards. |
 | **Disputes** | ✅ **New** | Admin release-to-seller or refund-buyer. |
-| JARVIS assistant | 🟡 Basic | Chat works; no function calling into the DB yet. |
-| Buyer ↔ seller messaging | 🔴 Not built | `/buyer/messages` is a placeholder. |
-| Voice translation (Deepgram → Claude → ElevenLabs) | 🔴 Not built | Admin toggle exists, pipeline does not. |
+| **Legal pages** (Terms, Privacy, Refund, Contact) | ✅ **New** | Drafted for this business — have a lawyer review before relying on them. |
+| **Transactional email** | ✅ **New** | Resend; inert until `RESEND_API_KEY` + `EMAIL_FROM` are set. |
+| **Messaging** (order / tuition / support threads, realtime) | ✅ **New** | Migration 020. |
+| **Ratings, receipts, monthly report card** | ✅ **New** | Migration 021 — only parents with a completed demo or enrolment can review. |
+| **Featured listings, refunds, payout CSV, USD pricing** | ✅ **New** | Migration 022. |
+| **AI Studio catalogue + revisions** | ✅ **New** | Migration 023 seeds six services. |
+| **Meetings polish** (chat bubbles, emoji, request-to-present, in-call invite, attachments) | ✅ **New** | Migration 024. |
+| **JARVIS with real data** | ✅ **New** | Read-only, role-scoped tool calling via Claude Haiku; falls back to plain chat without `ANTHROPIC_API_KEY`. |
+| **Maintenance mode** | ✅ **New** | Admin → Settings toggle; admins keep access. |
+| **Automated tests + CI** | ✅ **New** | Unit tests + Playwright E2E against local Supabase; GitHub Actions on every PR. |
+| Voice translation (Deepgram → Claude → ElevenLabs) | 🔴 Not built | Needs Deepgram + ElevenLabs keys and a LiveKit agent worker. |
 | Simpaisa API (automatic JazzCash/Easypaisa) | 🔴 Not built | Needs a Simpaisa merchant account + API docs. Until then, the manual rail covers the same methods. |
-| Automated tests / CI | 🔴 Not built | Build + lint is the only gate today. |
 
 ---
 
@@ -61,7 +68,15 @@ supabase-migrations/016-meeting-invitations.sql
 supabase-migrations/017-fix-meeting-invitations-recursion.sql
 supabase-migrations/018-meeting-waiting-room.sql
 supabase-migrations/019-commerce-checkout.sql      ← required for checkout
+supabase-migrations/020-messaging.sql
+supabase-migrations/021-reviews-ratings.sql
+supabase-migrations/022-featured-listings.sql
+supabase-migrations/023-ai-studio-catalogue.sql
+supabase-migrations/024-meeting-attachments.sql
 ```
+
+Every migration has been verified against a real Postgres (local
+Supabase) — both a clean build of all 24 in order and re-running each.
 
 All migrations are idempotent (safe to re-run). **If you ever re-run 013,
 re-run 019 after it** — 013 re-grants browser INSERT on `ai_orders`, which
@@ -81,7 +96,11 @@ Required:
 | `NEXT_PUBLIC_LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | Meetings |
 
 Optional: `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` (cards),
-`LIVEKIT_EGRESS_S3_*` (recordings).
+`RESEND_API_KEY` + `EMAIL_FROM` (email), `NEXT_PUBLIC_SUPPORT_EMAIL`,
+`NEXT_PUBLIC_SUPPORT_WHATSAPP`, `NEXT_PUBLIC_BUSINESS_ADDRESS`,
+`NEXT_PUBLIC_LEGAL_NAME` (legal/contact pages), `LIVEKIT_EGRESS_S3_*`
+(recordings). Realtime must be enabled for `public.messages` (migration 020
+does it; check Database → Replication).
 
 ### 3.3 Supabase Auth settings
 * Authentication → URL Configuration → **Site URL** = `https://<your-domain>`,

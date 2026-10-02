@@ -10,7 +10,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "db:local:reset": "bash scripts/db-local-reset.sh"
+    "db:local:reset": "bash scripts/db-local-reset.sh",
+    "test:unit": "playwright test -c playwright.unit.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

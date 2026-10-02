@@ -255,6 +255,12 @@ test("JARVIS answers and messages hub loads", async ({ browser }) => {
   await parent.context().close()
 })
 
+test("health endpoint reports the database is reachable", async ({ request }) => {
+  const res = await request.get("/api/health")
+  expect(res.status()).toBe(200)
+  expect(((await res.json()) as { db: string }).db).toBe("ok")
+})
+
 test("cron: rejects missing secret and runs with it", async ({ request }) => {
   expect((await request.get("/api/cron/commerce")).status()).toBe(401)
   const ok = await request.get("/api/cron/commerce", { headers: { authorization: "Bearer e2e-cron-secret" } })

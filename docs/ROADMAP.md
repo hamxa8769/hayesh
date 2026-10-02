@@ -8,6 +8,19 @@ session**, and ship each one as its own PR.
 
 Legend: 🧑‍💼 = operator task (you, outside code) · 🛠 = development task
 
+## Progress (updated after the launch-readiness pass)
+
+| Phase | Status |
+|---|---|
+| 0 — Launch blockers | ✅ Done in code (legal pages, email, maintenance mode, ratings, structured error logging + `/api/health`). **Operator still owns 0.1** (migrations, env vars, payment accounts) and legal review. |
+| 1 — Trust & retention | ✅ Done (messaging, trust section, monthly report card, receipts) |
+| 2 — Payment automation | 🟡 Refunds, payout CSV export and USD pricing done. **Simpaisa blocked** on a merchant account + API docs. |
+| 3 — Revenue expansion | 🟡 Featured listings and AI Studio catalogue + revisions done. **Parent Premium deferred**: today's benefits (unlimited demos, matching) are already free, so it needs a real product decision on what premium unlocks before charging for it. Translation fee waits on Phase 6. |
+| 4 — Meetings polish | ✅ Done (needs a live LiveKit call to verify UX; recording still needs `LIVEKIT_EGRESS_S3_*`) |
+| 5 — JARVIS with real actions | ✅ Read-only tools done. Write actions intentionally not added. |
+| 6 — Live voice translation | 🔴 Not started — needs Deepgram + ElevenLabs keys and a LiveKit agent worker. |
+| 7 — Engineering quality | ✅ CI, unit tests, Playwright E2E (every money flow, against local Supabase), legacy cleanup. Upstash rate limiting still recommended at scale. |
+
 ---
 
 ## Phase 0 — Launch blockers (do before announcing the site)
