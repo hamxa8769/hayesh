@@ -237,6 +237,27 @@ async function activateOrder(tx: Transaction): Promise<void> {
       return
     }
 
+    if (tx.type === "featured") {
+      const role = (tx.meta?.role as string | undefined) ?? ""
+      const table = role === "teacher" ? "teachers" : role === "seller" ? "sellers" : null
+      const days = Number(tx.meta?.days)
+      if (!table || !Number.isFinite(days) || days <= 0) return
+      const { data: row } = await admin.from(table).select("featured_until").eq("user_id", payerId).maybeSingle()
+      const now = Date.now()
+      const currentEnd = (row as { featured_until: string | null } | null)?.featured_until
+      const base = Math.max(now, currentEnd ? new Date(currentEnd).getTime() : 0)
+      const until = new Date(base + days * 24 * 60 * 60 * 1000)
+      await admin.from(table).update({ featured: true, featured_until: until.toISOString() }).eq("user_id", payerId)
+      await notifyUser({
+        userId: payerId,
+        type: "payment_confirmed",
+        title: "You're featured",
+        message: `You're featured until ${until.toDateString()}.`,
+        actionUrl: role === "teacher" ? "/teacher/dashboard" : "/seller/dashboard",
+      })
+      return
+    }
+
     if (tx.type === "registration") {
       const role = (tx.meta?.role as string | undefined) ?? ""
       const table = role === "teacher" ? "teachers" : role === "seller" ? "sellers" : null
@@ -321,4 +342,82 @@ export async function refundGigEscrow(gigOrderId: string): Promise<void> {
     .update({ status: "refunded", updated_at: new Date().toISOString() })
     .eq("gig_order_id", gigOrderId)
     .eq("status", "processing")
+}
+
+export type RefundResult = { ok: true; transaction: Transaction } | { ok: false; error: string; status: number }
+
+/**
+ * Admin refund of a paid transaction. The money itself goes back off-platform;
+ * this reverses the business effect and marks the transaction 'refunded'.
+ * Completed payments with a payee are refused when the payee has already
+ * withdrawn the funds (mirrors the balance maths in migration 007).
+ */
+export async function refundTransaction(transactionId: string, reason: string, adminId: string): Promise<RefundResult> {
+  const admin = createAdminClient()
+  const { data: current } = await admin.from("transactions").select("*").eq("id", transactionId).maybeSingle()
+  if (!current) return { ok: false, error: "Transaction not found", status: 404 }
+  const tx = current as Transaction
+  if (tx.status !== "completed" && tx.status !== "processing") {
+    return { ok: false, error: "Only completed or in-escrow payments can be refunded", status: 409 }
+  }
+
+  if (tx.status === "completed" && tx.payee_id && Number(tx.net_amount) > 0) {
+    const { data: earnedRows } = await admin
+      .from("transactions")
+      .select("net_amount")
+      .eq("payee_id", tx.payee_id)
+      .eq("status", "completed")
+      .eq("currency", tx.currency)
+    const { data: payoutRows } = await admin
+      .from("payouts")
+      .select("amount")
+      .eq("recipient_id", tx.payee_id)
+      .eq("currency", tx.currency)
+      .neq("status", "failed")
+    const earned = ((earnedRows ?? []) as Array<{ net_amount: number | null }>).reduce((sum, r) => sum + Number(r.net_amount ?? 0), 0)
+    const claimed = ((payoutRows ?? []) as Array<{ amount: number | null }>).reduce((sum, r) => sum + Number(r.amount ?? 0), 0)
+    if (earned - claimed < Number(tx.net_amount)) {
+      return { ok: false, error: "Payee has already withdrawn these funds — recover manually first", status: 409 }
+    }
+  }
+
+  const now = new Date().toISOString()
+  const { data: updated, error } = await admin
+    .from("transactions")
+    .update({ status: "refunded", rejection_reason: reason, bank_transfer_confirmed_by: adminId, updated_at: now })
+    .eq("id", transactionId)
+    .eq("status", tx.status)
+    .select("*")
+    .maybeSingle()
+  if (error) return { ok: false, error: error.message, status: 500 }
+  if (!updated) return { ok: false, error: "This payment was already changed by someone else", status: 409 }
+  const refunded = updated as Transaction
+
+  try {
+    if (refunded.type === "gig" && refunded.gig_order_id) {
+      await admin.from("gig_orders").update({ status: "cancelled", updated_at: now }).eq("id", refunded.gig_order_id)
+    } else if (refunded.type === "tuition" && refunded.subscription_id) {
+      await admin.from("subscriptions").update({ status: "cancelled", cancelled_at: now, updated_at: now }).eq("id", refunded.subscription_id)
+    } else if (refunded.type === "registration" || refunded.type === "featured") {
+      const role = (refunded.meta?.role as string | undefined) ?? ""
+      const table = role === "teacher" ? "teachers" : role === "seller" ? "sellers" : null
+      if (table && refunded.payer_id) {
+        const patch = refunded.type === "registration" ? { registration_fee_paid: false } : { featured: false }
+        await admin.from(table).update(patch).eq("user_id", refunded.payer_id)
+      }
+    }
+  } catch (e: unknown) {
+    console.error("refundTransaction effects failed", refunded.id, e instanceof Error ? e.message : e)
+  }
+
+  if (refunded.payer_id) {
+    await notifyUser({
+      userId: refunded.payer_id,
+      type: "dispute_resolved",
+      title: "Refund issued",
+      message: `Your payment ${refunded.reference_code ?? ""} was refunded: ${reason}. The money is returned through your original payment channel.`,
+      actionUrl: `/checkout/${refunded.id}`,
+    })
+  }
+  return { ok: true, transaction: refunded }
 }

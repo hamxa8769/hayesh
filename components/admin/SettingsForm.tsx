@@ -36,6 +36,8 @@ const settingsFormSchema = z.object({
   maintenance_mode: z.boolean(),
   ui_theme_accent: z.enum(["aurora-jade-gold", "ocean-cyan", "ember-rose", "violet-nova"]),
   gig_auto_complete_days: numberField.int("Whole days only").min(1, "At least 1 day").max(30, "Cannot exceed 30 days"),
+  featured_7d_price_pkr: numberField.min(0, "Cannot be negative"),
+  featured_30d_price_pkr: numberField.min(0, "Cannot be negative"),
   payment_bank_name: z.string().trim().max(120),
   payment_account_title: z.string().trim().max(120),
   payment_account_number: z.string().trim().max(60),
@@ -61,6 +63,8 @@ const DEFAULTS: SettingsFormValues = {
   maintenance_mode: false,
   ui_theme_accent: "aurora-jade-gold",
   gig_auto_complete_days: 3,
+  featured_7d_price_pkr: 1500,
+  featured_30d_price_pkr: 5000,
   payment_bank_name: "",
   payment_account_title: "",
   payment_account_number: "",
@@ -123,6 +127,8 @@ function valuesFromRows(rows: PlatformSetting[]): SettingsFormValues {
     maintenance_mode: toBoolean(get("maintenance_mode"), DEFAULTS.maintenance_mode),
     ui_theme_accent: toThemeAccent(get("ui_theme_accent")),
     gig_auto_complete_days: toNumber(get("gig_auto_complete_days"), DEFAULTS.gig_auto_complete_days),
+    featured_7d_price_pkr: toNumber(get("featured_7d_price_pkr"), DEFAULTS.featured_7d_price_pkr),
+    featured_30d_price_pkr: toNumber(get("featured_30d_price_pkr"), DEFAULTS.featured_30d_price_pkr),
     payment_bank_name: toText(get("payment_bank_name")),
     payment_account_title: toText(get("payment_account_title")),
     payment_account_number: toText(get("payment_account_number")),
@@ -363,6 +369,28 @@ export function SettingsForm() {
             step="0.01"
             error={errors.seller_registration_fee_usd?.message}
             registration={register("seller_registration_fee_usd", { valueAsNumber: true })}
+          />
+        </div>
+      </Section>
+
+      <Section
+        title="Featured listings"
+        description="Price a teacher or seller pays (in PKR) to be ranked first in discovery and marketplace listings."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <NumberField
+            id="featured_7d_price_pkr"
+            label="7-day featured (PKR)"
+            hint="Charged for one week of featured placement."
+            error={errors.featured_7d_price_pkr?.message}
+            registration={register("featured_7d_price_pkr", { valueAsNumber: true })}
+          />
+          <NumberField
+            id="featured_30d_price_pkr"
+            label="30-day featured (PKR)"
+            hint="Charged for 30 days of featured placement."
+            error={errors.featured_30d_price_pkr?.message}
+            registration={register("featured_30d_price_pkr", { valueAsNumber: true })}
           />
         </div>
       </Section>

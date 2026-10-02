@@ -20,6 +20,8 @@ export interface CommerceSettings {
   teacherRegistrationFeePkr: number
   sellerRegistrationFeePkr: number
   gigAutoCompleteDays: number
+  featured7dPricePkr: number
+  featured30dPricePkr: number
   accounts: PaymentAccounts
 }
 
@@ -29,6 +31,8 @@ const DEFAULTS = {
   teacher_registration_fee_pkr: 2000,
   seller_registration_fee_pkr: 1000,
   gig_auto_complete_days: 3,
+  featured_7d_price_pkr: 1500,
+  featured_30d_price_pkr: 5000,
 }
 
 function toNumber(value: unknown, fallback: number): number {
@@ -52,6 +56,8 @@ export async function getCommerceSettings(): Promise<CommerceSettings> {
     teacherRegistrationFeePkr: toNumber(map.get("teacher_registration_fee_pkr"), DEFAULTS.teacher_registration_fee_pkr),
     sellerRegistrationFeePkr: toNumber(map.get("seller_registration_fee_pkr"), DEFAULTS.seller_registration_fee_pkr),
     gigAutoCompleteDays: Math.max(1, toNumber(map.get("gig_auto_complete_days"), DEFAULTS.gig_auto_complete_days)),
+    featured7dPricePkr: toNumber(map.get("featured_7d_price_pkr"), DEFAULTS.featured_7d_price_pkr),
+    featured30dPricePkr: toNumber(map.get("featured_30d_price_pkr"), DEFAULTS.featured_30d_price_pkr),
     accounts: {
       bankName: toText(map.get("payment_bank_name")),
       accountTitle: toText(map.get("payment_account_title")),

@@ -15,6 +15,7 @@ import { reconcilePaidOrders } from "@/lib/payments/settle"
  *  2. Issue next-month tuition charges 3 days before a period ends.
  *  3. Mark subscriptions past_due once their period has ended unpaid.
  *  4. Expire checkout transactions left unpaid (no proof) for 7 days.
+ *  5. Clear lapsed featured listings (teachers + sellers).
  *
  * Protected by CRON_SECRET (Vercel sends it as a Bearer token).
  */
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
   const admin = createAdminClient()
   const settings = await getCommerceSettings()
   const now = Date.now()
-  const summary = { reconciled: 0, autoCompleted: 0, renewalsIssued: 0, pastDue: 0, expired: 0 }
+  const summary = { reconciled: 0, autoCompleted: 0, renewalsIssued: 0, pastDue: 0, expired: 0, unfeatured: 0 }
 
   // 0. Finish any payment whose activation was interrupted.
   summary.reconciled = await reconcilePaidOrders()
@@ -104,6 +105,18 @@ export async function GET(request: Request) {
     summary.expired++
     if (tx.gig_order_id) await admin.from("gig_orders").update({ status: "cancelled" }).eq("id", tx.gig_order_id).eq("status", "pending")
     if (tx.ai_order_id) await admin.from("ai_orders").update({ status: "cancelled" }).eq("id", tx.ai_order_id).eq("status", "pending")
+  }
+
+  // 5. Lapsed featured listings.
+  const nowIso = new Date(now).toISOString()
+  for (const table of ["teachers", "sellers"] as const) {
+    const { data: unfeatured } = await admin
+      .from(table)
+      .update({ featured: false })
+      .eq("featured", true)
+      .lt("featured_until", nowIso)
+      .select("id")
+    summary.unfeatured += (unfeatured ?? []).length
   }
 
   return NextResponse.json({ ok: true, ...summary })

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils/cn"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatPKR, formatDateTime, formatDate } from "@/lib/utils/format"
 import { RegistrationFeeCard } from "@/components/shared/RegistrationFeeCard"
+import { FeatureListingCard } from "@/components/shared/FeatureListingCard"
 import { EscrowBalanceCard } from "@/components/teacher/EscrowBalanceCard"
 import { TeacherProfileCompletionCard } from "@/components/teacher/TeacherProfileCompletionCard"
 import { computeTeacherBalance, type TeacherBalance } from "@/components/teacher/teacher-balance"
@@ -150,6 +151,7 @@ export default function TeacherDashboard() {
       </Reveal>
 
       <RegistrationFeeCard role="teacher" />
+      <FeatureListingCard role="teacher" />
 
       {error ? (
         <div className="rounded-lg border border-accent-danger/30 bg-accent-danger/10 p-6 text-sm text-accent-danger">{error}</div>

@@ -10,6 +10,10 @@ import { createClient } from "@/lib/supabase/client"
 import { formatPKR } from "@/lib/utils/format"
 import type { Teacher } from "@/types/database"
 
+function isFeatured(t: Pick<Teacher, "featured" | "featured_until">): boolean {
+  return Boolean(t.featured) && (!t.featured_until || new Date(t.featured_until).getTime() > Date.now())
+}
+
 function getInitials(name: string | null): string {
   if (!name) return "?"
   return name
@@ -29,7 +33,9 @@ export default function TeachersPage() {
     const load = async () => {
       const supabase = createClient()
       const { data } = await supabase.from("teachers").select("*").eq("status", "approved").order("average_rating", { ascending: false })
-      setTeachers((data || []) as Teacher[])
+      const rows = (data || []) as Teacher[]
+      // Unexpired featured teachers first; Array.sort is stable so the rating order is kept within each group.
+      setTeachers([...rows].sort((a, b) => Number(isFeatured(b)) - Number(isFeatured(a))))
       setLoading(false)
     }
     load()
@@ -128,6 +134,9 @@ export default function TeachersPage() {
                             )}
                           </div>
 
+                          {isFeatured(t) && (
+                            <Badge variant="secondary" className="mr-2 mt-3">Featured</Badge>
+                          )}
                           {t.translation_enabled && (
                             <Badge variant="aurora" className="mt-3">✦ Multilingual</Badge>
                           )}

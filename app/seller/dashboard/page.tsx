@@ -8,6 +8,7 @@ import { JarvisCard } from "@/components/ui/jarvis-card"
 import { JarvisButton } from "@/components/ui/jarvis-button"
 import { Button } from "@/components/ui/button"
 import { RegistrationFeeCard } from "@/components/shared/RegistrationFeeCard"
+import { FeatureListingCard } from "@/components/shared/FeatureListingCard"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatPKR } from "@/lib/utils/format"
 import type { Seller } from "@/types/database"
@@ -92,6 +93,7 @@ export default function SellerDashboard() {
       </motion.div>
 
       <RegistrationFeeCard role="seller" />
+      <FeatureListingCard role="seller" />
 
       {!loading && needsSetup ? (
         <div className="relative overflow-hidden rounded-lg border border-border bg-surface p-8">

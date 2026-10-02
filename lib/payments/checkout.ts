@@ -72,7 +72,20 @@ async function insertPendingTransaction(input: PendingTxInput): Promise<{ id: st
   return { error: "Could not create a payment reference. Please try again." }
 }
 
-function pickPrice(pkr: number | null | undefined, usd: number | null | undefined): { amount: number; currency: string } | null {
+/** True when the caller's profile country is set and is not Pakistan. */
+async function isInternationalCaller(userId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data } = await admin.from("profiles").select("country").eq("id", userId).maybeSingle()
+  const country = ((data as { country: string | null } | null)?.country ?? "").trim().toLowerCase()
+  return country !== "" && country !== "pk" && country !== "pakistan"
+}
+
+function pickPrice(
+  pkr: number | null | undefined,
+  usd: number | null | undefined,
+  preferUsd = false
+): { amount: number; currency: string } | null {
+  if (preferUsd && typeof usd === "number" && usd >= 0) return { amount: Number(usd), currency: "USD" }
   if (typeof pkr === "number" && pkr >= 0) return { amount: pkr, currency: "PKR" }
   if (typeof usd === "number" && usd >= 0) return { amount: Number(usd), currency: "USD" }
   return null
@@ -103,7 +116,7 @@ export async function checkoutAIService(
     if (value) cleanInputs[field.field_name] = value
   }
 
-  const price = pickPrice(service.price_pkr as number | null, service.price_usd as number | null)
+  const price = pickPrice(service.price_pkr as number | null, service.price_usd as number | null, await isInternationalCaller(caller.userId))
   if (!price) return { ok: false, error: "This service has no price configured", status: 409 }
 
   const { data: order, error: orderError } = await admin
@@ -167,7 +180,11 @@ export async function checkoutGig(
   if (!seller || seller.status !== "approved") return { ok: false, error: "This seller is not accepting orders", status: 409 }
   if (seller.user_id === caller.userId) return { ok: false, error: "You can't order your own service", status: 400 }
 
-  const price = pickPrice(gig[`${tier}_price_pkr`] as number | null, gig[`${tier}_price_usd`] as number | null)
+  const price = pickPrice(
+    gig[`${tier}_price_pkr`] as number | null,
+    gig[`${tier}_price_usd`] as number | null,
+    await isInternationalCaller(caller.userId)
+  )
   if (!price || price.amount <= 0) return { ok: false, error: "This package is not available", status: 400 }
 
   const deliveryDays = Number(gig[`${tier}_delivery_days`] ?? 3) || 3
@@ -244,7 +261,11 @@ export async function checkoutTuition(caller: CheckoutCaller, input: TuitionInpu
     if (!student) return { ok: false, error: "Student not found", status: 404 }
   }
 
-  const price = pickPrice(teacher[`${input.tier}_price_pkr`] as number | null, teacher[`${input.tier}_price_usd`] as number | null)
+  const price = pickPrice(
+    teacher[`${input.tier}_price_pkr`] as number | null,
+    teacher[`${input.tier}_price_usd`] as number | null,
+    await isInternationalCaller(caller.userId)
+  )
   if (!price || price.amount <= 0) return { ok: false, error: "This plan is not offered by the teacher", status: 400 }
 
   // Re-use an unpaid enrolment for the same child/teacher/tier instead of piling up duplicates.
@@ -390,4 +411,47 @@ export async function checkoutRegistration(caller: CheckoutCaller): Promise<Chec
   })
   if ("error" in tx) return { ok: false, error: tx.error, status: 500 }
   return { ok: true, transactionId: tx.id, referenceCode: tx.referenceCode, free: fee === 0 }
+}
+
+// ── Featured listing (teachers / sellers) ────────────────────
+
+export async function checkoutFeatured(caller: CheckoutCaller, days: 7 | 30): Promise<CheckoutResult> {
+  if (caller.role !== "teacher" && caller.role !== "seller") {
+    return { ok: false, error: "Featured listings are for teacher and seller accounts only", status: 400 }
+  }
+  const admin = createAdminClient()
+  const table = caller.role === "teacher" ? "teachers" : "sellers"
+  const { data: row } = await admin.from(table).select("id, status").eq("user_id", caller.userId).maybeSingle()
+  if (!row || (row as { status: string | null }).status !== "approved") {
+    return { ok: false, error: "Your profile must be approved first", status: 409 }
+  }
+
+  const { data: openTx } = await admin
+    .from("transactions")
+    .select("id, reference_code, meta")
+    .eq("payer_id", caller.userId)
+    .eq("type", "featured")
+    .eq("status", "pending")
+    .limit(20)
+  const reusable = ((openTx ?? []) as Array<{ id: string; reference_code: string; meta: Record<string, unknown> | null }>).find(
+    (t) => Number(t.meta?.days) === days
+  )
+  if (reusable) return { ok: true, transactionId: reusable.id, referenceCode: reusable.reference_code, free: false }
+
+  const settings = await getCommerceSettings()
+  const price = days === 7 ? settings.featured7dPricePkr : settings.featured30dPricePkr
+
+  const tx = await insertPendingTransaction({
+    type: "featured",
+    payerId: caller.userId,
+    payeeId: null,
+    gross: price,
+    fee: price,
+    net: 0,
+    currency: "PKR",
+    description: `Featured listing — ${days} days`,
+    meta: { role: caller.role, profile_id: (row as { id: string }).id, days },
+  })
+  if ("error" in tx) return { ok: false, error: tx.error, status: 500 }
+  return { ok: true, transactionId: tx.id, referenceCode: tx.referenceCode, free: price === 0 }
 }

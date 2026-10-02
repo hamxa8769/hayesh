@@ -19,12 +19,24 @@ export default function MarketplacePage() {
   const [search, setSearch] = useState("")
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY)
   const [loading, setLoading] = useState(true)
+  const [featuredSellers, setFeaturedSellers] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
       const { data } = await supabase.from("gigs").select("*").eq("status", "approved").order("created_at", { ascending: false })
-      setGigs((data || []) as Gig[])
+      const rows = (data || []) as Gig[]
+      // Featured status lives on the seller row — second query, then featured sellers' gigs first (stable sort).
+      const sellerIds = Array.from(new Set(rows.map((g) => g.seller_id).filter(Boolean)))
+      const featured = new Set<string>()
+      if (sellerIds.length > 0) {
+        const { data: sellerRows } = await supabase.from("sellers").select("id, featured, featured_until").in("id", sellerIds)
+        for (const s of (sellerRows || []) as Array<{ id: string; featured: boolean | null; featured_until: string | null }>) {
+          if (s.featured && (!s.featured_until || new Date(s.featured_until).getTime() > Date.now())) featured.add(s.id)
+        }
+      }
+      setFeaturedSellers(featured)
+      setGigs([...rows].sort((a, b) => Number(featured.has(b.seller_id)) - Number(featured.has(a.seller_id))))
       setLoading(false)
     }
     load()
@@ -100,7 +112,10 @@ export default function MarketplacePage() {
                   <Link href={`/marketplace/${g.id}`} className="group block h-full">
                     <div className="relative flex h-full flex-col rounded-lg border border-border bg-surface p-6 transition-all duration-150 hover:-translate-y-0.5 hover:border-line-strong hover:bg-surface-elevated hover:shadow-[0_12px_30px_rgba(0,0,0,0.45),0_0_24px_rgba(39,196,160,0.1)]">
                       <div className="flex items-center justify-between gap-3">
-                        <Badge variant="secondary" className="uppercase tracking-[0.06em]">{g.category}</Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="uppercase tracking-[0.06em]">{g.category}</Badge>
+                          {featuredSellers.has(g.seller_id) && <Badge variant="outline" className="uppercase tracking-[0.06em]">Featured</Badge>}
+                        </div>
                         {g.average_rating != null && (
                           <span className="inline-flex items-center gap-1 font-mono text-xs tabular-nums text-text-muted">
                             <Star className="h-3 w-3 fill-accent-secondary text-accent-secondary" />

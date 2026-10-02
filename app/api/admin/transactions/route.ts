@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireUser } from "@/lib/auth/require-user"
 import { createAdminClient } from "@/lib/supabase/admin"
-import { markTransactionPaid, rejectTransaction } from "@/lib/payments/settle"
+import { markTransactionPaid, refundTransaction, rejectTransaction } from "@/lib/payments/settle"
 import type { Transaction } from "@/types/database"
 
 /**
@@ -10,7 +10,7 @@ import type { Transaction } from "@/types/database"
  *
  * GET  → pending transactions that have proof attached, with a short-lived
  *        signed URL for each proof image and the payer's name/email.
- * POST → { transaction_id, action: 'confirm' | 'reject', reason? }
+ * POST → { transaction_id, action: 'confirm' | 'reject' | 'refund', reason? }
  */
 
 export const maxDuration = 60
@@ -67,6 +67,11 @@ const actionSchema = z.discriminatedUnion("action", [
     transaction_id: z.string().uuid(),
     reason: z.string().trim().min(3, "Give the customer a reason").max(500),
   }),
+  z.object({
+    action: z.literal("refund"),
+    transaction_id: z.string().uuid(),
+    reason: z.string().trim().min(3, "Give a reason for the refund").max(500),
+  }),
 ])
 
 export async function POST(request: Request) {
@@ -84,6 +89,11 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request" }, { status: 400 })
 
   const input = parsed.data
+  if (input.action === "refund") {
+    const refund = await refundTransaction(input.transaction_id, input.reason, auth.user.userId)
+    if (!refund.ok) return NextResponse.json({ error: refund.error }, { status: refund.status })
+    return NextResponse.json({ transaction: refund.transaction, already_settled: false })
+  }
   const result =
     input.action === "confirm"
       ? await markTransactionPaid(input.transaction_id, { processor: "manual", confirmedBy: auth.user.userId })

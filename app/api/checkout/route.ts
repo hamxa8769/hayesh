@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireUser } from "@/lib/auth/require-user"
 import { rateLimit } from "@/lib/security/rate-limit"
-import { checkoutAIService, checkoutGig, checkoutRegistration, checkoutTuition, type CheckoutResult } from "@/lib/payments/checkout"
+import { checkoutAIService, checkoutFeatured, checkoutGig, checkoutRegistration, checkoutTuition, type CheckoutResult } from "@/lib/payments/checkout"
 import { markTransactionPaid } from "@/lib/payments/settle"
 
 /**
@@ -36,6 +36,7 @@ const checkoutSchema = z.discriminatedUnion("kind", [
     student_id: z.string().uuid().optional(),
   }),
   z.object({ kind: z.literal("registration") }),
+  z.object({ kind: z.literal("featured"), days: z.union([z.literal(7), z.literal(30)]) }),
 ])
 
 export async function POST(request: Request) {
@@ -78,6 +79,9 @@ export async function POST(request: Request) {
       break
     case "registration":
       result = await checkoutRegistration(caller)
+      break
+    case "featured":
+      result = await checkoutFeatured(caller, input.days)
       break
   }
 
