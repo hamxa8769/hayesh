@@ -102,33 +102,44 @@ update public.teachers t
 -- Public select ("Reviews are publicly readable") and the admin policy
 -- ("Admin manages reviews") from migration 006 are left untouched.
 
+-- Who may review a teacher: a parent with a tuition enrolment, or one whose
+-- demo lesson actually took place ('completed' — a merely confirmed free demo
+-- is not enough). Used by BOTH insert and update so a review can never be
+-- re-pointed (teacher_id changed) at a teacher the reviewer never had.
+create or replace function public.can_review_teacher(p_teacher_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.subscriptions s
+     where s.teacher_id = p_teacher_id
+       and s.parent_id  = auth.uid()
+       and s.status::text in ('active', 'past_due', 'cancelled', 'paused')
+  ) or exists (
+    select 1 from public.demo_bookings d
+     where d.teacher_id = p_teacher_id
+       and d.parent_id  = auth.uid()
+       and d.status = 'completed'
+  );
+$$;
+
+revoke all on function public.can_review_teacher(uuid) from public, anon;
+grant execute on function public.can_review_teacher(uuid) to authenticated;
+
 drop policy if exists "Reviewer can write their own review" on public.teacher_reviews;
 drop policy if exists "Verified parent can write their own review" on public.teacher_reviews;
 create policy "Verified parent can write their own review"
   on public.teacher_reviews for insert
-  with check (
-    reviewer_id = auth.uid()
-    and (
-      exists (
-        select 1 from public.subscriptions s
-         where s.teacher_id = teacher_reviews.teacher_id
-           and s.parent_id  = auth.uid()
-           and s.status::text in ('active', 'past_due', 'cancelled', 'paused')
-      )
-      or exists (
-        select 1 from public.demo_bookings d
-         where d.teacher_id = teacher_reviews.teacher_id
-           and d.parent_id  = auth.uid()
-           and d.status in ('confirmed', 'completed')
-      )
-    )
-  );
+  with check (reviewer_id = auth.uid() and public.can_review_teacher(teacher_id));
 
 drop policy if exists "Reviewer can update their own review" on public.teacher_reviews;
 create policy "Reviewer can update their own review"
   on public.teacher_reviews for update
   using (reviewer_id = auth.uid())
-  with check (reviewer_id = auth.uid());
+  with check (reviewer_id = auth.uid() and public.can_review_teacher(teacher_id));
 
 drop policy if exists "Reviewer can delete their own review" on public.teacher_reviews;
 create policy "Reviewer can delete their own review"

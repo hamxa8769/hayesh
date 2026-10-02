@@ -122,6 +122,16 @@ test("AI Studio: buyer pays and the order is fulfilled automatically", async ({ 
   await expect
     .poll(async () => (await db().from("ai_orders").select("status, ai_output").eq("id", tx?.ai_order_id).single()).data?.ai_output ?? "")
     .toContain("E2E MOCK AI OUTPUT")
+
+  // The buyer asks for a revision from My Orders.
+  await buyer.goto("/orders")
+  await buyer.getByRole("tab", { name: /HayeshAI Studio/ }).click()
+  await buyer.getByRole("button", { name: /Request revision/ }).first().click()
+  await buyer.getByPlaceholder(/Make it shorter/).fill("Please make it more formal and shorter.")
+  await buyer.getByRole("button", { name: "Submit revision" }).click()
+  await expect
+    .poll(async () => (await db().from("ai_orders").select("revisions_used").eq("id", tx?.ai_order_id).single()).data?.revisions_used)
+    .toBe(1)
   await buyer.context().close()
 })
 
@@ -171,7 +181,7 @@ test("admin rejects a fake payment and the order is cancelled", async ({ browser
   await admin.goto("/admin/payments")
   await admin.getByRole("button", { name: /^Reject/ }).first().click()
   await admin.getByPlaceholder("Tell the payer why this payment was rejected").fill("Amount not received in our account")
-  await admin.getByRole("button", { name: /Reject/ }).last().click()
+  await admin.getByRole("button", { name: "Confirm reject" }).click()
   await expect.poll(async () => (await db().from("transactions").select("status").eq("id", txId).single()).data?.status).toBe("failed")
   const { data: tx } = await db().from("transactions").select("gig_order_id, rejection_reason").eq("id", txId).single()
   expect(tx?.rejection_reason).toContain("Amount not received")
@@ -195,6 +205,54 @@ test("registration fee: teacher pays from the dashboard and gets marked paid", a
     .poll(async () => (await db().from("teachers").select("registration_fee_paid").eq("id", s.teacherId).single()).data?.registration_fee_paid)
     .toBe(true)
   await teacher.context().close()
+})
+
+test("featured listing: approved teacher buys 7 days and ranks as featured", async ({ browser }) => {
+  const s = seed()
+  const teacher = await asRole(browser, "teacher")
+  await teacher.goto("/teacher/dashboard")
+  await teacher.getByRole("button", { name: "Get featured" }).first().click()
+  await payManually(teacher)
+  await adminConfirmAll(browser)
+  await expect
+    .poll(async () => (await db().from("teachers").select("featured").eq("id", s.teacherId).single()).data?.featured)
+    .toBe(true)
+  const { data: t } = await db().from("teachers").select("featured_until").eq("id", s.teacherId).single()
+  expect(new Date(t?.featured_until as string).getTime()).toBeGreaterThan(Date.now() + 6 * 24 * 3600 * 1000)
+  await teacher.context().close()
+})
+
+test("admin refund cancels the tuition plan", async ({ browser }) => {
+  const s = seed()
+  const { data: tx } = await db()
+    .from("transactions")
+    .select("id, subscription_id")
+    .eq("type", "tuition")
+    .eq("payer_id", s.users.parent)
+    .eq("status", "completed")
+    .limit(1)
+    .single()
+  const admin = await asRole(browser, "admin")
+  const res = await admin.request.post("/api/admin/transactions", {
+    data: { action: "refund", transaction_id: tx?.id, reason: "Parent changed plans before the first lesson" },
+  })
+  expect(res.status(), await res.text()).toBe(200)
+  const { data: after } = await db().from("transactions").select("status").eq("id", tx?.id).single()
+  expect(after?.status).toBe("refunded")
+  const { data: sub } = await db().from("subscriptions").select("status").eq("id", tx?.subscription_id).single()
+  expect(sub?.status).toBe("cancelled")
+  await admin.context().close()
+})
+
+test("JARVIS answers and messages hub loads", async ({ browser }) => {
+  const parent = await asRole(browser, "parent")
+  const res = await parent.request.post("/api/jarvis", { data: { query: "Any payments due?" } })
+  expect(res.status()).toBe(200)
+  const body = (await res.json()) as { answer: string }
+  expect(body.answer.length).toBeGreaterThan(0)
+  await parent.goto("/messages")
+  await expect(parent.getByRole("button", { name: /Contact Hayesh Support/ }).first()).toBeVisible()
+  await parent.context().close()
 })
 
 test("cron: rejects missing secret and runs with it", async ({ request }) => {

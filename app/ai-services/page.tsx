@@ -10,8 +10,17 @@ import { createClient } from "@/lib/supabase/client"
 import { formatPKR } from "@/lib/utils/format"
 import type { AIService } from "@/types/database"
 
+type ListedAIService = Pick<
+  AIService,
+  "id" | "title" | "description" | "category" | "price_pkr" | "delivery_time_hrs" | "average_rating" | "total_reviews"
+>
+
+// Explicit columns: system_prompt is revoked for buyers, so select("*") would fail.
+const LIST_COLUMNS = "id,title,description,category,price_pkr,delivery_time_hrs,average_rating,total_reviews"
+
 export default function AIServicesPage() {
-  const [services, setServices] = useState<AIService[]>([])
+  const [services, setServices] = useState<ListedAIService[]>([])
+  const [loadError, setLoadError] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -20,8 +29,13 @@ export default function AIServicesPage() {
       // ai_services has a `status` enum ('active'|'paused'|'draft'), not an
       // is_active boolean — querying the wrong column returned nothing, which is
       // why HayeshAI Studio showed empty despite 10 seeded services.
-      const { data } = await supabase.from("ai_services").select("*").eq("status", "active").order("created_at", { ascending: false })
-      setServices((data || []) as AIService[])
+      const { data, error } = await supabase
+        .from("ai_services")
+        .select(LIST_COLUMNS)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+      if (error) setLoadError(true)
+      setServices((data || []) as ListedAIService[])
       setLoading(false)
     }
     load()
@@ -46,9 +60,19 @@ export default function AIServicesPage() {
               ))}
             </div>
           ) : services.length === 0 ? (
-            <div className="rounded-lg border border-border bg-surface p-16 text-center">
+            <div className="rounded-lg border border-border bg-surface p-10 text-center sm:p-16">
               <Bot className="mx-auto h-10 w-10 text-text-disabled" />
-              <p className="mt-4 text-text-muted">AI services coming soon</p>
+              <p className="mt-4 font-display text-lg font-semibold text-text-primary">
+                {loadError ? "We couldn't load the services" : "New AI services are on the way"}
+              </p>
+              <p className="mx-auto mt-2 max-w-md text-sm text-text-muted">
+                {loadError
+                  ? "Please refresh the page in a moment."
+                  : "HayeshAI Studio is being stocked with CV, essay, homework and translation helpers. Check back soon, or browse human experts in the marketplace."}
+              </p>
+              <Link href="/marketplace" className="mt-5 inline-block text-sm text-accent-secondary hover:underline">
+                Browse the marketplace
+              </Link>
             </div>
           ) : (
             <Stagger className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" staggerDelay={0.06}>
@@ -59,19 +83,17 @@ export default function AIServicesPage() {
                       <div className="absolute inset-x-0 top-0 h-[2px] aurora-bg opacity-70" />
 
                       <div className="flex items-center justify-between gap-3">
-                        <Badge variant="secondary" className="uppercase tracking-[0.06em]">AI Service</Badge>
-                        {s.delivery_time_hrs != null && (
-                          <span className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.08em] text-accent-secondary">
-                            <Zap className="h-3 w-3" />
-                            {s.delivery_time_hrs <= 1 ? "Instant" : `${s.delivery_time_hrs}h delivery`}
-                          </span>
-                        )}
+                        <Badge variant="secondary" className="uppercase tracking-[0.06em]">{s.category || "AI Service"}</Badge>
+                        <span className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.08em] text-accent-secondary">
+                          <Zap className="h-3 w-3" />
+                          {s.delivery_time_hrs != null && s.delivery_time_hrs > 1 ? `${s.delivery_time_hrs}h delivery` : "Instant"}
+                        </span>
                       </div>
 
                       <h3 className="mt-4 font-display text-lg font-semibold leading-snug text-text-primary">{s.title}</h3>
                       <p className="mt-2 line-clamp-2 flex-1 text-sm leading-relaxed text-text-muted">{s.description}</p>
 
-                      {s.average_rating != null && (
+                      {s.average_rating != null && (s.total_reviews ?? 0) > 0 && (
                         <span className="mt-3 inline-flex items-center gap-1 font-mono text-xs tabular-nums text-text-muted">
                           <Star className="h-3 w-3 fill-accent-secondary text-accent-secondary" />
                           {s.average_rating.toFixed(1)}

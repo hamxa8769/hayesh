@@ -396,6 +396,8 @@ export async function refundTransaction(transactionId: string, reason: string, a
   try {
     if (refunded.type === "gig" && refunded.gig_order_id) {
       await admin.from("gig_orders").update({ status: "cancelled", updated_at: now }).eq("id", refunded.gig_order_id)
+    } else if (refunded.type === "ai_service" && refunded.ai_order_id) {
+      await admin.from("ai_orders").update({ status: "cancelled", updated_at: now }).eq("id", refunded.ai_order_id)
     } else if (refunded.type === "tuition" && refunded.subscription_id) {
       await admin.from("subscriptions").update({ status: "cancelled", cancelled_at: now, updated_at: now }).eq("id", refunded.subscription_id)
     } else if (refunded.type === "registration" || refunded.type === "featured") {
@@ -408,6 +410,22 @@ export async function refundTransaction(transactionId: string, reason: string, a
     }
   } catch (e: unknown) {
     console.error("refundTransaction effects failed", refunded.id, e instanceof Error ? e.message : e)
+  }
+
+  // The balance check above and a payout request can interleave; flag any
+  // payee whose balance went negative so an admin holds their withdrawal.
+  if (refunded.payee_id) {
+    const { data: earned } = await admin.from("transactions").select("net_amount").eq("payee_id", refunded.payee_id).eq("status", "completed").eq("currency", refunded.currency)
+    const { data: claimed } = await admin.from("payouts").select("amount").eq("recipient_id", refunded.payee_id).eq("currency", refunded.currency).neq("status", "failed")
+    const sum = (rows: Array<Record<string, unknown>> | null, key: string): number => (rows ?? []).reduce((t, r) => t + Number(r[key] ?? 0), 0)
+    if (sum(earned, "net_amount") - sum(claimed, "amount") < 0) {
+      await notifyAdmins({
+        type: "payment_submitted",
+        title: "Payee balance negative after refund",
+        message: `Refund ${refunded.reference_code ?? refunded.id} left the payee with a negative balance — hold their pending withdrawals.`,
+        actionUrl: "/admin/payments",
+      })
+    }
   }
 
   if (refunded.payer_id) {

@@ -16,34 +16,34 @@ export interface JarvisSuggestion {
 
 const ROLE_SUGGESTIONS: Record<UserRole, JarvisSuggestion[]> = {
   admin: [
-    { label: "Revenue this month", query: "Show me revenue for this month" },
+    { label: "What needs attention?", query: "What needs my attention today?" },
+    { label: "Revenue this month", query: "Show me platform revenue for this month" },
     { label: "Pending approvals", query: "What teacher and seller approvals are pending?" },
-    { label: "Platform health", query: "Give me a summary of platform health right now" },
     { label: "Open disputes", query: "Are there any open disputes I should look at?" },
   ],
   teacher: [
-    { label: "This week's sessions", query: "What sessions do I have this week?" },
-    { label: "My earnings", query: "How much have I earned this month?" },
-    { label: "Rating trend", query: "How is my rating trending?" },
-    { label: "Grow my students", query: "How can I get more students on my profile?" },
+    { label: "My earnings", query: "How much have I earned?" },
+    { label: "Upcoming lessons", query: "What lessons do I have coming up?" },
+    { label: "My students", query: "Who are my active students?" },
+    { label: "Unread updates", query: "Do I have any unread notifications?" },
   ],
   parent: [
-    { label: "Child's progress", query: "How is my child progressing?" },
+    { label: "Child's progress", query: "How is my child doing?" },
+    { label: "Payments due", query: "Any payments due?" },
+    { label: "Next lesson", query: "When is my next lesson?" },
     { label: "Find a teacher", query: "Help me find a teacher" },
-    { label: "Next session", query: "When is my next session?" },
-    { label: "Payment history", query: "Show my payment history" },
   ],
   seller: [
-    { label: "Gig performance", query: "How are my gigs performing?" },
-    { label: "Pending orders", query: "Show my pending orders" },
+    { label: "Orders due soon", query: "Which orders are due soon?" },
+    { label: "My earnings", query: "How much have I earned?" },
+    { label: "Unread updates", query: "Do I have any unread notifications?" },
     { label: "Improve my gig", query: "How can I improve my gig listing?" },
-    { label: "Earnings this month", query: "How much have I earned this month?" },
   ],
   buyer: [
     { label: "My orders", query: "Show my orders" },
-    { label: "Track an order", query: "Track my latest order" },
-    { label: "Recommend a gig", query: "Recommend a gig for me" },
-    { label: "Refund policy", query: "How do refunds work?" },
+    { label: "Payments due", query: "Any payments due?" },
+    { label: "Find a service", query: "Recommend a service for me" },
+    { label: "Find a teacher", query: "Help me find a teacher" },
   ],
 }
 

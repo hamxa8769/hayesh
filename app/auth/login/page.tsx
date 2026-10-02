@@ -1,5 +1,5 @@
 "use client"
-
+import { safeRedirectPath } from "@/lib/utils/safe-redirect"
 import { forwardRef, useState, Suspense, type ReactNode } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -100,10 +100,7 @@ function LoginForm() {
     }
     // Return the user to where they were (checkout, a teacher profile, …).
     // Only same-origin relative paths are honoured — never "//evil.com".
-    const safeRedirect =
-      redirectTo && redirectTo !== "/" && redirectTo.startsWith("/") && !redirectTo.startsWith("//") && !redirectTo.startsWith("/\\")
-        ? redirectTo
-        : undefined
+    const safeRedirect = safeRedirectPath(redirectTo)
     window.location.href = safeRedirect || (role && roleMap[role]) || "/"
   }
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Bot, Loader2, RotateCcw, Star, Zap } from "lucide-react"
+import { ArrowLeft, Bot, Loader2, RotateCcw, ShieldCheck, Star, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
@@ -117,23 +117,21 @@ export default function AIServiceDetailPage() {
             <p className="mt-5 leading-relaxed text-text-muted">{service.description}</p>
 
             <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-xs tabular-nums text-text-muted">
-              {service.delivery_time_hrs != null && (
-                <span className="inline-flex items-center gap-1.5 uppercase tracking-[0.08em] text-accent-secondary">
-                  <Zap className="h-3.5 w-3.5" />
-                  {service.delivery_time_hrs <= 1 ? "Instant delivery" : `${service.delivery_time_hrs}h delivery`}
-                </span>
-              )}
-              {service.average_rating != null && (
+              <span className="inline-flex items-center gap-1.5 uppercase tracking-[0.08em] text-accent-secondary">
+                <Zap className="h-3.5 w-3.5" />
+                {service.delivery_time_hrs != null && service.delivery_time_hrs > 1 ? `${service.delivery_time_hrs}h delivery` : "Instant delivery"}
+              </span>
+              {service.average_rating != null && (service.total_reviews ?? 0) > 0 && (
                 <span className="inline-flex items-center gap-1.5">
                   <Star className="h-3.5 w-3.5 fill-accent-secondary text-accent-secondary" />
                   {service.average_rating.toFixed(1)}
                   {service.total_reviews != null && <span className="text-text-disabled">({service.total_reviews} reviews)</span>}
                 </span>
               )}
-              {service.revisions_allowed != null && (
+              {service.revisions_allowed != null && service.revisions_allowed > 0 && (
                 <span className="inline-flex items-center gap-1.5">
                   <RotateCcw className="h-3.5 w-3.5" />
-                  {service.revisions_allowed} revisions
+                  {service.revisions_allowed === 1 ? "1 revision included" : `${service.revisions_allowed} revisions included`}
                 </span>
               )}
             </div>
@@ -151,13 +149,14 @@ export default function AIServiceDetailPage() {
             <div className="mt-4 space-y-5 rounded-lg border border-border bg-surface p-6">
               {inputFields.map((field) => (
                 <div key={field.field_name} className="space-y-1.5">
-                  <label className="text-sm font-medium text-text-muted">
+                  <label htmlFor={`ai-field-${field.field_name}`} className="text-sm font-medium text-text-muted">
                     {field.label}
                     {field.required && <span className="ml-1 text-accent-secondary">*</span>}
                   </label>
 
                   {field.type === "textarea" && (
                     <textarea
+                      id={`ai-field-${field.field_name}`}
                       value={formValues[field.field_name] || ""}
                       onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
                       rows={4}
@@ -167,6 +166,7 @@ export default function AIServiceDetailPage() {
 
                   {field.type === "select" && (
                     <select
+                      id={`ai-field-${field.field_name}`}
                       value={formValues[field.field_name] || ""}
                       onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
                       className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-text-primary focus:border-accent-primary/60 focus:outline-none"
@@ -180,14 +180,28 @@ export default function AIServiceDetailPage() {
 
                   {field.type === "file" && (
                     <input
+                      id={`ai-field-${field.field_name}`}
                       type="file"
-                      onChange={(e) => handleFieldChange(field.field_name, e.target.files?.[0]?.name || "")}
+                      accept=".txt,.md,.csv,text/plain,text/markdown,text/csv"
+                      onChange={async (e) => {
+                        // The file's TEXT is what the AI works on — sending only
+                        // the filename would silently produce a useless order.
+                        const file = e.target.files?.[0]
+                        if (!file) return handleFieldChange(field.field_name, "")
+                        if (file.size > 100_000) {
+                          e.target.value = ""
+                          return handleFieldChange(field.field_name, "")
+                        }
+                        const text = (await file.text()).slice(0, 20000)
+                        handleFieldChange(field.field_name, text)
+                      }}
                       className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-text-muted file:mr-3 file:rounded file:border-0 file:bg-accent-primary/10 file:px-3 file:py-1.5 file:font-mono file:text-xs file:uppercase file:tracking-[0.06em] file:text-accent-primary focus:border-accent-primary/60 focus:outline-none"
                     />
                   )}
 
                   {field.type === "text" && (
                     <input
+                      id={`ai-field-${field.field_name}`}
                       type="text"
                       value={formValues[field.field_name] || ""}
                       onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
@@ -210,6 +224,10 @@ export default function AIServiceDetailPage() {
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
             {submitting ? "Starting order..." : "Order Now"}
           </Button>
+          <p className="mt-3 flex items-start justify-center gap-2 text-center text-xs text-text-muted">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-success" />
+            Secure payment — generated right after your payment is confirmed.
+          </p>
         </Reveal>
       </div>
     </div>

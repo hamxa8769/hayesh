@@ -37,7 +37,8 @@ export default async function globalSetup(): Promise<void> {
       ('payment_bank_name', '"Meezan Bank"'), ('payment_account_title', '"Hayesh Pvt Ltd"'),
       ('payment_account_number', '"0123456789"'), ('payment_iban', '""'),
       ('payment_jazzcash_number', '"03001234567"'), ('payment_easypaisa_number', '""'),
-      ('payment_instructions', '""')
+      ('payment_instructions', '""'),
+      ('featured_7d_price_pkr', '1500'), ('featured_30d_price_pkr', '5000')
     on conflict (key) do update set value = excluded.value;
   `)
 

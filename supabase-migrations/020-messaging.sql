@@ -86,6 +86,7 @@ create policy "Participants send messages"
   with check (
     sender_id = auth.uid()
     and char_length(content) between 1 and 4000
+    and attachment_url is null  -- attachments aren't supported in chat yet
     and exists (
       select 1 from public.conversations c
       where c.id = messages.conversation_id
