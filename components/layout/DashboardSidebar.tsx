@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import {
   LayoutDashboard, Calendar, Users, Wallet, UserCog, Search,
@@ -10,7 +10,7 @@ import {
   Star, Palette, Video, MessagesSquare, Compass,
 } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
-import { createClient } from "@/lib/supabase/client"
+import { signOutAndReload } from "@/lib/auth/sign-out"
 import type { UserRole } from "@/types/database"
 
 interface NavItem { icon: React.ComponentType<{ className?: string }>; label: string; href: string }
@@ -91,11 +91,10 @@ interface Props { role: UserRole; collapsed: boolean; onToggle: () => void; mobi
 
 export function DashboardSidebar({ role, collapsed, onToggle, mobileOpen, onMobileClose }: Props) {
   const pathname = usePathname()
-  const router = useRouter()
   const prefersReducedMotion = useReducedMotion()
   const items = navItems[role] || []
 
-  const signOut = async () => { await createClient().auth.signOut(); router.push("/") }
+  const signOut = () => signOutAndReload()
 
   const renderNav = (onNavigate: () => void) => (
     <nav className="flex-1 space-y-1 px-2 py-2">

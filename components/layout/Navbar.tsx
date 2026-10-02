@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Menu, X, LayoutDashboard, LogOut, CalendarClock, Package, MessageSquare } from "lucide-react"
 import { JarvisButton } from "@/components/ui/jarvis-button"
@@ -35,7 +34,6 @@ function getInitial(name: string | undefined, email: string | undefined): string
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const router = useRouter()
   const { user, profile, loading, signOut } = useSupabase()
   const accountButtonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -67,8 +65,9 @@ export function Navbar() {
   const handleSignOut = async () => {
     setMenuOpen(false)
     setMobileOpen(false)
+    // Full reload so no cached page keeps showing the signed-out user.
     await signOut()
-    router.push("/")
+    window.location.assign("/")
   }
 
   return (

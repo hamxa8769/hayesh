@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { ThemeProvider } from "@/components/providers/ThemeProvider"
+import { AuthSync } from "@/components/providers/AuthSync"
 import { BrandingProvider } from "@/components/branding/BrandingProvider"
 import { getBranding, buildBrandingStyleCss } from "@/lib/branding"
 import { getSiteUrl } from "@/lib/utils/site-url"
@@ -76,7 +77,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="min-h-screen bg-background font-body text-text-primary antialiased" suppressHydrationWarning>
         <BrandingProvider branding={branding}>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <AuthSync />
+            {children}
+          </ThemeProvider>
         </BrandingProvider>
       </body>
     </html>
