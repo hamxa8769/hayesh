@@ -35,11 +35,17 @@ export function createWithdrawalSchema(maxAmount: number) {
         error: "Select a payout method",
       }),
       bank_name: z.string().trim().max(120, "Keep it under 120 characters").optional(),
-      account_number: z.string().trim().min(4, "Enter a valid account number").max(60, "Too long"),
+      /** A saved withdrawal account to pay into; when set, the typed details are ignored. */
+      payout_account_id: z.string().optional(),
+      account_number: z.string().trim().max(60, "Too long").optional(),
       iban: z.string().trim().max(40, "Keep it under 40 characters").optional(),
       notes: z.string().trim().max(300, "Keep it under 300 characters").optional(),
     })
     .superRefine((values, ctx) => {
+      if (values.payout_account_id) return
+      if (!values.account_number || values.account_number.trim().length < 4) {
+        ctx.addIssue({ code: "custom", path: ["account_number"], message: "Enter a valid account number" })
+      }
       if (BANK_DETAIL_METHODS.includes(values.payment_method) && !values.bank_name?.trim()) {
         ctx.addIssue({
           code: "custom",

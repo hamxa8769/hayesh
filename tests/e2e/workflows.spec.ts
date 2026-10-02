@@ -233,10 +233,14 @@ test("withdrawals: seller saves an encrypted account, withdraws, admin approves;
   await sellerPage.getByRole("button", { name: "Request Withdrawal" }).click()
   const wd = sellerPage.getByRole("dialog")
 
+  // The saved Easypaisa account is offered and preselected — no retyping.
+  await expect(wd.getByText("Withdraw to")).toBeVisible()
+  await expect(wd.getByRole("radio").first()).toBeChecked()
+  await expect(wd.getByText("••••0824")).toBeVisible()
+  await expect(wd.locator("#wd-account")).toHaveCount(0)
+
   // More than the available balance is rejected with a clear message.
   await wd.locator("#wd-amount").fill("99999999")
-  await wd.locator("#wd-method").selectOption("easypaisa")
-  await wd.locator("#wd-account").fill("03415150824")
   await wd.getByRole("button", { name: "Submit Request" }).click()
   await expect(wd.getByText(/Cannot exceed your available balance/)).toBeVisible()
 
@@ -248,6 +252,7 @@ test("withdrawals: seller saves an encrypted account, withdraws, admin approves;
   const { data: payout } = await db().from("payouts").select("*").eq("recipient_id", s.users.seller).eq("amount", 1000).order("created_at", { ascending: false }).limit(1).single()
   expect(payout?.status).toBe("pending")
   expect(payout?.recipient_type).toBe("seller")
+  expect(payout?.payment_method).toBe("easypaisa") // taken from the saved account
   expect(String(payout?.account_number).startsWith("v1:")).toBe(true)
   expect(String(payout?.account_number)).not.toContain("03415150824")
 
