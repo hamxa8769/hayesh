@@ -1,14 +1,30 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { chatCompletion, classifyIntent } from "@/lib/ai/router"
+import { rateLimit } from "@/lib/security/rate-limit"
+
+const MAX_QUERY_CHARS = 2000
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { query } = await req.json()
-  if (!query) return NextResponse.json({ error: "No query" }, { status: 400 })
+  const limited = rateLimit(`jarvis:${user.id}`, 20, 60_000)
+  if (!limited.ok) {
+    return NextResponse.json({ error: "You're sending messages too quickly. Please wait a moment." }, { status: 429 })
+  }
+
+  let query: unknown
+  try {
+    query = ((await req.json()) as { query?: unknown }).query
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
+  if (typeof query !== "string" || !query.trim()) return NextResponse.json({ error: "No query" }, { status: 400 })
+  if (query.length > MAX_QUERY_CHARS) {
+    return NextResponse.json({ error: `Please keep messages under ${MAX_QUERY_CHARS} characters` }, { status: 413 })
+  }
 
   const { data: profile } = await supabase.from("profiles").select("role, full_name").eq("id", user.id).single()
 

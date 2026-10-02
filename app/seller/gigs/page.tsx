@@ -21,7 +21,11 @@ export default function GigsPage() {
     const load = async () => {
       const { createClient } = await import("@/lib/supabase/client")
       const supabase = createClient()
-      const { data } = await supabase.from("gigs").select("*").eq("seller_id", user.id).order("created_at", { ascending: false })
+      // gigs.seller_id references sellers.id, not the auth/profile id.
+      const { data: seller } = await supabase.from("sellers").select("id").eq("user_id", user.id).maybeSingle()
+      const { data } = seller
+        ? await supabase.from("gigs").select("*").eq("seller_id", seller.id).order("created_at", { ascending: false })
+        : { data: [] }
       setGigs((data || []) as Gig[])
       setLoading(false)
     }

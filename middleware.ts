@@ -58,6 +58,14 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
+  // Checkout and orders pages need a session but no particular role.
+  if (request.nextUrl.pathname.startsWith('/checkout')) {
+    if (user) return response
+    const loginUrl = new URL('/auth/login', request.url)
+    loginUrl.searchParams.set('redirect', request.nextUrl.pathname)
+    return NextResponse.redirect(loginUrl)
+  }
+
   const requiredRole = getRole(request.nextUrl.pathname)
 
   if (!requiredRole) return response
@@ -79,8 +87,10 @@ export async function middleware(request: NextRequest) {
 
   if (!profile) {
     const meta = user.user_metadata
+    // Never trust a self-asserted 'admin' from signup metadata — admins are
+    // promoted server-side only. Mirrors the whitelist in handle_new_user().
     const role = meta?.role as string
-    if (['admin','teacher','parent','seller','buyer'].includes(role)) {
+    if (['teacher','parent','seller','buyer'].includes(role)) {
       await admin.from('profiles').upsert({
         id: user.id,
         email: user.email || '',
@@ -104,5 +114,5 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   // "/" is matched so a signed-in visitor can be sent to /explore.
-  matcher: ['/', '/admin/:path*', '/teacher/:path*', '/parent/:path*', '/seller/:path*', '/buyer/:path*'],
+  matcher: ['/', '/checkout/:path*', '/admin/:path*', '/teacher/:path*', '/parent/:path*', '/seller/:path*', '/buyer/:path*'],
 }

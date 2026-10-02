@@ -27,6 +27,19 @@ export type NotificationType =
   | "payout_requested"
   | "meeting_invite"
   | "meeting_cancelled"
+  | "payment_submitted"
+  | "payment_confirmed"
+  | "payment_rejected"
+  | "order_received"
+  | "order_delivered"
+  | "order_completed"
+  | "order_revision"
+  | "order_disputed"
+  | "dispute_resolved"
+  | "subscription_activated"
+  | "subscription_renewal_due"
+  | "subscription_past_due"
+  | "registration_paid"
 
 export interface NotificationResult {
   ok: boolean

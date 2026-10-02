@@ -39,6 +39,15 @@ const SETTINGS_SPEC = {
   // this key yet. See SettingsForm.tsx for the "stored, not yet applied"
   // note shown to the admin.
   ui_theme_accent: z.enum(["aurora-jade-gold", "ocean-cyan", "ember-rose", "violet-nova"]),
+  // Payee accounts shown to customers at checkout (manual payment rail).
+  payment_bank_name: z.string().trim().max(120),
+  payment_account_title: z.string().trim().max(120),
+  payment_account_number: z.string().trim().max(60),
+  payment_iban: z.string().trim().max(40),
+  payment_jazzcash_number: z.string().trim().max(30),
+  payment_easypaisa_number: z.string().trim().max(30),
+  payment_instructions: z.string().trim().max(1000),
+  gig_auto_complete_days: z.number().int("Must be a whole number of days").min(1, "At least 1 day").max(30, "At most 30 days"),
 } as const
 
 type SettingKey = keyof typeof SETTINGS_SPEC
