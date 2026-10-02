@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { getCommerceSettings } from "@/lib/payments/settings"
 import { isStripeEnabled } from "@/lib/payments/stripe"
+import { AppShell } from "@/components/layout/AppShell"
 import { CheckoutClient } from "@/components/checkout/CheckoutClient"
 import type { Transaction } from "@/types/database"
 
@@ -32,7 +33,11 @@ export default async function CheckoutPage({
 
   const settings = await getCommerceSettings()
 
+  // The dashboard shell wraps the page (not a segment layout): a client-component
+  // layout streams its shell before this page resolves, which would turn the
+  // notFound() above into a soft 200 instead of a real 404.
   return (
+    <AppShell title="Checkout">
     <div className="mx-auto w-full max-w-3xl">
       <Link
         href="/orders"
@@ -48,5 +53,6 @@ export default async function CheckoutPage({
         userId={user.id}
       />
     </div>
+    </AppShell>
   )
 }

@@ -126,7 +126,6 @@ export default function NewGigPage() {
 
       const { error: insertError } = await supabase.from("gigs").insert({
         seller_id: seller.id,
-        status: "pending",
         title: values.title,
         category: values.category,
         subcategory: values.subcategory || null,
@@ -253,11 +252,14 @@ export default function NewGigPage() {
               </Button>
 
               {step < TOTAL_STEPS ? (
-                <Button type="button" variant="aurora" onClick={goNext}>
+                // Distinct keys: without them React reuses one DOM button and flips its
+                // type to "submit" mid-click, so "Next" on step 3 published the gig
+                // before the seller ever saw the review step.
+                <Button key="next" type="button" variant="aurora" onClick={goNext}>
                   Next <ArrowRight className="h-4 w-4" />
                 </Button>
               ) : (
-                <Button type="submit" variant="aurora" disabled={submitting}>
+                <Button key="publish" type="submit" variant="aurora" disabled={submitting}>
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Rocket className="h-4 w-4" />}
                   {submitting ? "Publishing..." : "Publish Gig"}
                 </Button>

@@ -150,13 +150,26 @@ export default function TeacherOnboardingPage() {
         private_price_pkr: data.private_price_pkr ? parseInt(data.private_price_pkr, 10) : null,
         private_price_usd: null,
         translation_languages: data.languages,
-        documents: data.documents,
+        // `documents` is deliberately not inserted: only UPDATE (migration 009)
+        // is granted on that column, so including it here fails the whole
+        // insert with "permission denied for table teachers".
       })
 
       if (insertError) {
         setError(insertError.message)
         setSubmitting(false)
         return
+      }
+
+      if (data.documents.length > 0) {
+        const { error: documentsError } = await supabase
+          .from("teachers")
+          .update({ documents: data.documents })
+          .eq("user_id", userId)
+        if (documentsError) {
+          // The profile exists now, so don't block onboarding; the teacher can re-upload from Profile.
+          setError("Your profile was created, but your documents could not be saved. Re-upload them from your profile.")
+        }
       }
 
       // Saving the phone number is a courtesy update to `profiles`, entirely
