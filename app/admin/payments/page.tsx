@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { StatTile } from "@/components/dashboard/StatTile"
 import { PanelGroup } from "@/components/dashboard/PanelGroup"
 import { Reveal } from "@/components/motion/Reveal"
+import { PaymentVerificationQueue } from "@/components/admin/PaymentVerificationQueue"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatCurrency, formatDate } from "@/lib/utils/format"
 import { StatusPill, statusToneFor, PAYOUT_STATUS_LABEL } from "@/components/teacher/StatusPill"
@@ -46,6 +47,9 @@ function maskDisplayAccountNumber(stored: string | null): string {
   return `••••${trimmed.slice(-4)}`
 }
 
+// Money is collected once a payment is completed OR held in escrow (processing).
+const isCollected = (t: Transaction): boolean => t.status === "completed" || t.status === "processing"
+
 export default function AdminPaymentsPage() {
   const { user } = useSupabase()
 
@@ -71,7 +75,7 @@ export default function AdminPaymentsPage() {
       const { data } = await supabase.from("transactions").select("*").order("created_at", { ascending: false })
       const all = (data || []) as Transaction[]
       setTxs(all)
-      setTotal(all.filter((t) => t.status === "completed").reduce((s, t) => s + (t.gross_amount || 0), 0))
+      setTotal(all.filter(isCollected).reduce((s, t) => s + (t.gross_amount || 0), 0))
       setLoading(false)
     }
     load()
@@ -107,7 +111,7 @@ export default function AdminPaymentsPage() {
     loadPayouts()
   }, [loadPayouts])
 
-  const platformFees = txs.filter((t) => t.status === "completed").reduce((s, t) => s + (t.platform_fee || 0), 0)
+  const platformFees = txs.filter(isCollected).reduce((s, t) => s + (t.platform_fee || 0), 0)
   const netPayouts = txs.filter((t) => t.status === "completed").reduce((s, t) => s + (t.net_amount || 0), 0)
 
   const visiblePayouts = useMemo(
@@ -189,9 +193,11 @@ export default function AdminPaymentsPage() {
         <h1 className="mt-1 font-display text-2xl font-semibold text-text-primary sm:text-3xl">Payments &amp; Revenue</h1>
       </Reveal>
 
+      <PaymentVerificationQueue />
+
       <PanelGroup title="Revenue Breakdown" className="grid gap-4 sm:grid-cols-3">
-        <StatTile label="Total Revenue" value={formatCurrency(total, "PKR")} accent />
-        <StatTile label="Platform Fees" value={formatCurrency(platformFees, "PKR")} />
+        <StatTile label="Gross Volume" value={formatCurrency(total, "PKR")} />
+        <StatTile label="Platform Revenue" value={formatCurrency(platformFees, "PKR")} accent />
         <StatTile label="Net Payouts" value={formatCurrency(netPayouts, "PKR")} />
       </PanelGroup>
 
