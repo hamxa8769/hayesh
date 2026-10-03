@@ -438,3 +438,57 @@ test("meetings: teacher hosts a meeting inviting the parent, parent accepts, pre
   await teacher.context().close()
   await parent.context().close()
 })
+
+test("gig page: reviews from completed orders, admin moderation, and pre-order inquiry", async ({ browser }) => {
+  const s = seed()
+  // flows.spec completed a gig order for the buyer; review it from My Orders.
+  const { data: order } = await db()
+    .from("gig_orders")
+    .select("id, gig_id, seller_id")
+    .eq("buyer_id", s.users.buyer)
+    .eq("status", "completed")
+    .limit(1)
+    .single()
+  expect(order?.id).toBeTruthy()
+
+  const buyer = await asRole(browser, "buyer")
+  await buyer.goto("/orders")
+  await buyer.getByRole("button", { name: /Leave a review/ }).first().click()
+  await buyer.getByRole("radio", { name: /^5 stars/ }).click()
+  await buyer.getByPlaceholder("How was working with this seller?").fill("Fantastic logo work — fast and thoughtful.")
+  await buyer.getByRole("button", { name: "Submit review" }).click()
+  await expect(buyer.getByText(/your review is live/i)).toBeVisible()
+
+  // Aggregates are recomputed by the database trigger.
+  await expect.poll(async () => (await db().from("gigs").select("total_reviews").eq("id", order?.gig_id).single()).data?.total_reviews).toBe(1)
+  const { data: seller } = await db().from("sellers").select("total_reviews, average_rating").eq("id", order?.seller_id).single()
+  expect(seller?.total_reviews).toBeGreaterThanOrEqual(1)
+  expect(Number(seller?.average_rating)).toBeGreaterThan(0)
+
+  // Public endpoint + the gig page show it.
+  const pub = (await (await buyer.request.get(`/api/gig-reviews?gig_id=${order?.gig_id}`)).json()) as { reviews: Array<{ comment: string }> }
+  expect(pub.reviews.some((r) => r.comment.includes("Fantastic logo work"))).toBe(true)
+  await buyer.goto(`/marketplace/${order?.gig_id}`)
+  await expect(buyer.getByText("Fantastic logo work").first()).toBeVisible()
+
+  // A second review for the same order is refused.
+  const dup = await buyer.request.post("/api/gig-reviews", { data: { gig_order_id: order?.id, rating: 1, comment: "again" } })
+  expect(dup.status()).toBe(409)
+
+  // Admin hides it → it disappears publicly and the counts drop.
+  const { data: review } = await db().from("gig_reviews").select("id").eq("gig_order_id", order?.id).single()
+  const admin = await asRole(browser, "admin")
+  expect((await admin.request.post("/api/admin/gig-reviews", { data: { id: review?.id, action: "hide" } })).status()).toBe(200)
+  const after = (await (await buyer.request.get(`/api/gig-reviews?gig_id=${order?.gig_id}`)).json()) as { reviews: unknown[] }
+  expect(after.reviews.length).toBe(0)
+  await expect.poll(async () => (await db().from("gigs").select("total_reviews").eq("id", order?.gig_id).single()).data?.total_reviews).toBe(0)
+  await admin.context().close()
+
+  // "Message seller" before ordering opens an inquiry thread.
+  await buyer.goto(`/marketplace/${order?.gig_id}`)
+  await buyer.getByRole("button", { name: /Message seller/ }).first().click()
+  await buyer.waitForURL(/\/messages\?c=/)
+  const { data: conv } = await db().from("conversations").select("context").eq("gig_id", order?.gig_id).eq("context", "inquiry").limit(1)
+  expect(conv?.length).toBe(1)
+  await buyer.context().close()
+})

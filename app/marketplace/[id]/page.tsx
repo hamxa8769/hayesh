@@ -1,335 +1,246 @@
-"use client"
-
-import { BackButton } from "@/components/navigation/BackButton"
-import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
+import { cache } from "react"
+import type { Metadata } from "next"
 import Link from "next/link"
-import { Clock, RotateCcw, ShoppingBag, Star } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Reveal } from "@/components/motion/Reveal"
-import { Stagger } from "@/components/motion/Stagger"
-import { cn } from "@/lib/utils/cn"
-import { createClient } from "@/lib/supabase/client"
+import { notFound } from "next/navigation"
+import { BadgeCheck, CheckCircle2, ChevronRight, Star } from "lucide-react"
+import { BackButton } from "@/components/navigation/BackButton"
+import { createClient } from "@/lib/supabase/server"
 import { formatPKR } from "@/lib/utils/format"
-import { OrderModal } from "@/components/marketplace/OrderModal"
-import { RatingStars } from "@/components/teacher-public/RatingStars"
-import type { Gig, SellerLevel } from "@/types/database"
+import { GigGallery } from "@/components/gig-detail/gig-gallery"
+import { OrderPanel } from "@/components/gig-detail/order-panel"
+import { CompareTable } from "@/components/gig-detail/compare-table"
+import { FaqAccordion } from "@/components/gig-detail/faq-accordion"
+import { SellerCard } from "@/components/gig-detail/seller-card"
+import { SellerAvatar } from "@/components/gig-detail/seller-avatar"
+import { ReviewsSection } from "@/components/gig-detail/reviews-section"
+import { GigCardGrid, type GigWithSeller } from "@/components/gig-detail/gig-card-grid"
+import { Section } from "@/components/gig-detail/section"
+import { LEVEL_LABELS, buildTiers, type DetailSeller } from "@/components/gig-detail/gig-data"
+import type { Gig } from "@/types/database"
 
-/** Narrow projection of `sellers` used for the gig's seller card. */
-interface GigSellerSummary {
-  id: string
-  display_name: string
-  tagline: string | null
-  avatar_url: string | null
-  level: SellerLevel | null
-  is_online: boolean | null
-  average_rating: number | null
-  total_reviews: number | null
-  response_time_hrs: number | null
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const SELLER_COLUMNS =
+  "id, user_id, display_name, tagline, avatar_url, level, is_online, last_seen_at, average_rating, total_reviews, response_time_hrs, completed_orders, total_orders, skills, languages, created_at"
+
+interface GigBundle {
+  gig: Gig
+  seller: DetailSeller | null
 }
 
-const LEVEL_LABELS: Record<SellerLevel, string> = {
-  new: "New Seller",
-  rising: "Rising Talent",
-  top: "Top Rated",
-  elite: "Hayesh Elite",
-}
+const loadGig = cache(async (id: string): Promise<GigBundle | null> => {
+  if (!UUID_RE.test(id)) return null
+  const supabase = await createClient()
+  const { data: gig } = await supabase.from("gigs").select("*").eq("id", id).eq("status", "approved").maybeSingle()
+  if (!gig) return null
+  const { data: seller } = await supabase.from("sellers").select(SELLER_COLUMNS).eq("id", (gig as Gig).seller_id).maybeSingle()
+  return { gig: gig as Gig, seller: (seller as DetailSeller | null) ?? null }
+})
 
-function levelBadgeVariant(level: SellerLevel): "aurora" | "secondary" {
-  return level === "top" || level === "elite" ? "aurora" : "secondary"
-}
-
-function getInitials(name: string | null): string {
-  if (!name) return "?"
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("")
-}
-
-interface PackageTier {
-  key: "basic" | "standard" | "premium"
-  label: string
-  title: string | null
-  description: string | null
-  price: number | null
-  deliveryDays: number | null
-  revisions: number | null
-  features: string[] | null
-  featured?: boolean
-}
-
-function buildTiers(gig: Gig): PackageTier[] {
-  return [
-    {
-      key: "basic",
-      label: "Basic",
-      title: gig.basic_title,
-      description: gig.basic_description,
-      price: gig.basic_price_pkr,
-      deliveryDays: gig.basic_delivery_days,
-      revisions: gig.basic_revisions,
-      features: gig.basic_features,
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const bundle = await loadGig(id)
+  if (!bundle) return { title: "Service not found" }
+  const { gig, seller } = bundle
+  const description = gig.description.replace(/\s+/g, " ").trim().slice(0, 160)
+  const image = gig.gallery_urls?.[0]
+  return {
+    title: gig.title,
+    description,
+    openGraph: {
+      title: gig.title,
+      description,
+      type: "website",
+      ...(image ? { images: [{ url: image }] } : {}),
+      ...(seller ? { siteName: `Hayesh · ${seller.display_name}` } : {}),
     },
-    {
-      key: "standard",
-      label: "Standard",
-      title: gig.standard_title,
-      description: gig.standard_description,
-      price: gig.standard_price_pkr,
-      deliveryDays: gig.standard_delivery_days,
-      revisions: gig.standard_revisions,
-      features: gig.standard_features,
-      featured: true,
-    },
-    {
-      key: "premium",
-      label: "Premium",
-      title: gig.premium_title,
-      description: gig.premium_description,
-      price: gig.premium_price_pkr,
-      deliveryDays: gig.premium_delivery_days,
-      revisions: gig.premium_revisions,
-      features: gig.premium_features,
-    },
-  ]
-}
-
-export default function GigDetailPage() {
-  const { id } = useParams()
-  const [gig, setGig] = useState<Gig | null>(null)
-  const [seller, setSeller] = useState<GigSellerSummary | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedTier, setSelectedTier] = useState<PackageTier["key"]>("standard")
-  const [orderOpen, setOrderOpen] = useState(false)
-
-  useEffect(() => {
-    const load = async () => {
-      const supabase = createClient()
-      const { data: gigData } = await supabase.from("gigs").select("*").eq("id", id).single()
-      setGig(gigData as Gig | null)
-
-      if (gigData) {
-        const { data: sellerData } = await supabase
-          .from("sellers")
-          .select("id, display_name, tagline, avatar_url, level, is_online, average_rating, total_reviews, response_time_hrs")
-          .eq("id", (gigData as Gig).seller_id)
-          .maybeSingle()
-        setSeller(sellerData as GigSellerSummary | null)
-      }
-      setLoading(false)
-    }
-    load()
-  }, [id])
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="font-mono text-sm uppercase tracking-[0.12em] text-text-muted">Loading...</p>
-      </div>
-    )
+    twitter: { card: image ? "summary_large_image" : "summary", title: gig.title, description },
   }
+}
 
-  if (!gig) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-text-muted">Gig not found</p>
-      </div>
-    )
-  }
+export default async function GigDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const bundle = await loadGig(id)
+  if (!bundle) notFound()
+  const { gig, seller } = bundle
+
+  const supabase = await createClient()
+  const [moreRes, similarRes] = await Promise.all([
+    supabase
+      .from("gigs")
+      .select("*, sellers(display_name, avatar_url, level)")
+      .eq("seller_id", gig.seller_id)
+      .eq("status", "approved")
+      .neq("id", gig.id)
+      .order("total_orders", { ascending: false })
+      .limit(4),
+    supabase
+      .from("gigs")
+      .select("*, sellers(display_name, avatar_url, level)")
+      .eq("category", gig.category)
+      .eq("status", "approved")
+      .neq("id", gig.id)
+      .order("total_orders", { ascending: false })
+      .limit(12),
+  ])
+  const moreFromSeller = (moreRes.data ?? []) as unknown as GigWithSeller[]
+  const moreIds = new Set(moreFromSeller.map((g) => g.id))
+  const similarRaw = (similarRes.data ?? []) as unknown as GigWithSeller[]
+  // Prefer other sellers' work; fall back to overlap only to fill the row.
+  const similar = [...similarRaw.filter((g) => g.seller_id !== gig.seller_id), ...similarRaw.filter((g) => g.seller_id === gig.seller_id && !moreIds.has(g.id))]
+    .slice(0, 4)
 
   const tiers = buildTiers(gig)
-  const activeTier = tiers.find((t) => t.key === selectedTier) ?? tiers[0]
+  const images = gig.gallery_urls ?? []
+  const rating = gig.average_rating ?? 0
+  const reviewCount = gig.total_reviews ?? 0
+  const sellerName = seller?.display_name ?? "Hayesh Seller"
+  const categoryLabel = gig.category.charAt(0).toUpperCase() + gig.category.slice(1)
+  const startingPrice = tiers[0]?.price
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto max-w-5xl px-6 py-16 sm:px-10">
-        <BackButton fallbackHref="/marketplace" label="Back" className="mb-8" />
+    <div className="pb-28 pt-6 lg:pb-16">
+      <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+          <nav aria-label="Breadcrumb" className="min-w-0">
+            <ol className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm text-text-muted">
+              <li>
+                <Link href="/marketplace" className="transition-colors hover:text-text-primary">Marketplace</Link>
+              </li>
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-text-disabled" aria-hidden="true" />
+              <li>
+                <span>{categoryLabel}</span>
+              </li>
+              <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-text-disabled sm:block" aria-hidden="true" />
+              <li className="hidden max-w-[28ch] truncate text-text-primary sm:block" aria-current="page">{gig.title}</li>
+            </ol>
+          </nav>
+          <BackButton fallbackHref="/marketplace" label="Back" />
+        </div>
 
-        <Reveal>
-          {gig.gallery_urls && gig.gallery_urls.length > 0 && (
-            <div className="mb-8 grid gap-2 overflow-hidden rounded-lg border border-border sm:grid-cols-3">
-              {gig.gallery_urls.map((url, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={url} src={url} alt={`${gig.title} preview ${i + 1}`} className="h-48 w-full object-cover sm:h-56" />
-              ))}
+        <div className="grid gap-x-12 gap-y-10 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_380px]">
+          {/* Intro: title, seller row, gallery */}
+          <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-1">
+            <div className="flex flex-col gap-4">
+              <h1 className="text-balance font-display text-3xl font-semibold leading-tight tracking-tight text-text-primary sm:text-4xl">
+                {gig.title}
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                {seller ? (
+                  <Link href={`/sellers/${seller.id}`} className="group inline-flex items-center gap-2.5">
+                    <SellerAvatar name={seller.display_name} url={seller.avatar_url} className="h-9 w-9" />
+                    <span className="font-medium text-text-primary group-hover:text-accent-primary">{seller.display_name}</span>
+                  </Link>
+                ) : (
+                  <span className="text-text-muted">{sellerName}</span>
+                )}
+                {seller?.level && seller.level !== "new" && (
+                  <span className="inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.08em] text-accent-primary">
+                    <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                    {LEVEL_LABELS[seller.level]}
+                  </span>
+                )}
+                <span className="h-4 w-px bg-line-strong" aria-hidden="true" />
+                {rating > 0 ? (
+                  <a href="#reviews" className="inline-flex items-center gap-1.5 hover:text-text-primary">
+                    <Star className="h-4 w-4 fill-accent-warning text-accent-warning" aria-hidden="true" />
+                    <span className="font-mono font-semibold tabular-nums text-text-primary">{rating.toFixed(1)}</span>
+                    <span className="font-mono tabular-nums text-text-muted">({reviewCount})</span>
+                  </a>
+                ) : (
+                  <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] text-text-muted">New</span>
+                )}
+                {(seller?.completed_orders ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1.5 text-text-muted">
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                    <span className="font-mono tabular-nums">{seller?.completed_orders}</span> orders completed
+                  </span>
+                )}
+              </div>
             </div>
-          )}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge variant="secondary" className="uppercase tracking-[0.06em]">{gig.category}</Badge>
-            {gig.average_rating != null && (
-              <span className="inline-flex items-center gap-1 font-mono text-xs tabular-nums text-text-muted">
-                <Star className="h-3.5 w-3.5 fill-accent-secondary text-accent-secondary" />
-                {gig.average_rating.toFixed(1)}
-                {gig.total_orders != null && <span className="text-text-disabled">· {gig.total_orders} orders</span>}
-              </span>
-            )}
+            <GigGallery title={gig.title} category={gig.category} images={images} />
           </div>
 
-          <h1 className="mt-4 text-balance font-display text-3xl font-bold tracking-tight sm:text-4xl">{gig.title}</h1>
-          <p className="mt-4 max-w-2xl leading-relaxed text-text-muted">{gig.description}</p>
-
-          {gig.tags && gig.tags.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {gig.tags.map((tag) => (
-                <span key={tag} className="rounded-full border border-border px-3 py-1 text-xs text-text-muted">
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
-        </Reveal>
-
-        {seller && (
-          <Reveal delay={0.08} className="mt-8">
-            <Link
-              href={`/sellers/${seller.id}`}
-              className="group flex flex-col items-start gap-4 rounded-lg border border-border bg-surface p-5 transition-colors duration-150 hover:border-line-strong hover:bg-surface-elevated sm:flex-row sm:items-center"
-            >
-              {seller.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={seller.avatar_url}
-                  alt={seller.display_name}
-                  className="h-14 w-14 shrink-0 rounded-full border border-border object-cover"
-                />
-              ) : (
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-border bg-surface-elevated font-mono text-sm font-semibold text-text-muted">
-                  {getInitials(seller.display_name)}
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="truncate font-display text-base font-semibold text-text-primary group-hover:text-accent-primary">
-                    {seller.display_name}
-                  </p>
-                  {seller.level && <Badge variant={levelBadgeVariant(seller.level)}>{LEVEL_LABELS[seller.level]}</Badge>}
-                  {seller.is_online && (
-                    <span className="inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.08em] text-accent-success">
-                      <span className="h-1.5 w-1.5 rounded-full bg-accent-success" aria-hidden="true" /> Online
-                    </span>
-                  )}
-                </div>
-                {seller.tagline && <p className="mt-0.5 truncate text-sm text-text-muted">{seller.tagline}</p>}
-                <div className="mt-1.5 flex flex-wrap items-center gap-3">
-                  <RatingStars rating={seller.average_rating} size="sm" />
-                  {seller.total_reviews != null && seller.total_reviews > 0 && (
-                    <span className="font-mono text-xs tabular-nums text-text-muted">({seller.total_reviews})</span>
-                  )}
-                  {seller.response_time_hrs != null && (
-                    <span className="inline-flex items-center gap-1 font-mono text-xs tabular-nums text-text-muted">
-                      <Clock className="h-3 w-3" /> Responds in {seller.response_time_hrs}h
-                    </span>
-                  )}
-                </div>
+          {/* Sticky order panel (inline after the gallery on mobile) */}
+          <aside className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start lg:sticky lg:top-24" aria-label="Order this service">
+            {tiers.length > 0 ? (
+              <OrderPanel gigId={gig.id} tiers={tiers} />
+            ) : (
+              <div className="rounded-lg border border-border bg-surface p-6 text-sm text-text-muted">
+                This service has no packages available right now.
               </div>
-            </Link>
-          </Reveal>
+            )}
+          </aside>
+
+          {/* Body */}
+          <div className="flex min-w-0 flex-col gap-14 lg:col-start-1 lg:row-start-2">
+            <Section eyebrow="Overview" title="About this service">
+              <p className="max-w-[68ch] whitespace-pre-line text-base leading-relaxed text-text-primary/90">{gig.description}</p>
+              {gig.tags && gig.tags.length > 0 && (
+                <ul className="mt-6 flex flex-wrap gap-2" aria-label="Tags">
+                  {gig.tags.map((tag) => (
+                    <li key={tag} className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-text-muted">
+                      {tag}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {startingPrice != null && (
+                <p className="mt-6 font-mono text-xs uppercase tracking-[0.12em] text-text-muted">
+                  Packages from <span className="tabular-nums text-text-primary">{formatPKR(startingPrice)}</span>
+                </p>
+              )}
+            </Section>
+
+            {tiers.length > 1 && (
+              <Section id="compare" eyebrow="Packages" title="Compare packages">
+                <CompareTable tiers={tiers} />
+              </Section>
+            )}
+
+            {gig.faq && gig.faq.length > 0 && (
+              <Section eyebrow="FAQ" title="Frequently asked questions">
+                <FaqAccordion items={gig.faq} />
+              </Section>
+            )}
+
+            {seller && (
+              <Section eyebrow="Seller" title="About the seller">
+                <SellerCard seller={seller} gigId={gig.id} />
+              </Section>
+            )}
+
+            <ReviewsSection gigId={gig.id} sellerName={sellerName} sellerAvatar={seller?.avatar_url ?? null} />
+          </div>
+        </div>
+
+        {(moreFromSeller.length > 0 || similar.length > 0) && (
+          <div className="mt-16 flex flex-col gap-14 border-t border-border pt-14">
+            {moreFromSeller.length > 0 && (
+              <Section
+                eyebrow="Seller"
+                title={`More from ${sellerName}`}
+                aside={
+                  seller ? (
+                    <Link href={`/sellers/${seller.id}`} className="shrink-0 text-sm font-medium text-text-muted transition-colors hover:text-text-primary">
+                      View all
+                    </Link>
+                  ) : null
+                }
+              >
+                <GigCardGrid gigs={moreFromSeller} columns={4} />
+              </Section>
+            )}
+            {similar.length > 0 && (
+              <Section eyebrow="Explore" title="You may also like">
+                <GigCardGrid gigs={similar} columns={4} />
+              </Section>
+            )}
+          </div>
         )}
-
-        <Reveal delay={0.1} className="mt-12">
-          <span className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Packages</span>
-          <Stagger className="mt-4 grid gap-5 sm:grid-cols-3" staggerDelay={0.08}>
-            {tiers.map((tier) => (
-              <Reveal key={tier.key}>
-                <div
-                  role="radio"
-                  aria-checked={selectedTier === tier.key}
-                  tabIndex={0}
-                  onClick={() => setSelectedTier(tier.key)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault()
-                      setSelectedTier(tier.key)
-                    }
-                  }}
-                  className={cn(
-                    "relative flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border p-6 transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/50",
-                    selectedTier === tier.key
-                      ? "border-accent-primary bg-surface-elevated shadow-[0_0_30px_rgba(39,196,160,0.12)]"
-                      : tier.featured
-                        ? "border-accent-primary/40 bg-surface"
-                        : "border-border bg-surface hover:border-line-strong"
-                  )}
-                >
-                  {tier.featured && <div className="absolute inset-x-0 top-0 h-[2px] aurora-bg" />}
-                  <span className="font-mono text-xs uppercase tracking-[0.1em] text-text-muted">{tier.label}</span>
-                  <p className="mt-1 font-display text-base font-semibold text-text-primary">{tier.title || `${tier.label} Package`}</p>
-                  {tier.description && <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-text-muted">{tier.description}</p>}
-
-                  <p className={cn("mt-5 font-mono text-2xl font-bold tabular-nums", tier.featured ? "text-accent-primary" : "text-text-primary")}>
-                    {formatPKR(tier.price || 0)}
-                  </p>
-
-                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs tabular-nums text-text-muted">
-                    {tier.deliveryDays != null && (
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {tier.deliveryDays}d delivery
-                      </span>
-                    )}
-                    {tier.revisions != null && (
-                      <span className="inline-flex items-center gap-1">
-                        <RotateCcw className="h-3 w-3" />
-                        {tier.revisions} revisions
-                      </span>
-                    )}
-                  </div>
-
-                  {tier.features && tier.features.length > 0 && (
-                    <ul className="mt-4 space-y-1.5 text-sm text-text-muted">
-                      {tier.features.map((f) => (
-                        <li key={f} className="flex items-start gap-2">
-                          <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-text-disabled" />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </Reveal>
-            ))}
-          </Stagger>
-        </Reveal>
-
-        {gig.faq && gig.faq.length > 0 && (
-          <Reveal delay={0.15} className="mt-12">
-            <span className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">FAQ</span>
-            <div className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
-              {gig.faq.map((entry) => (
-                <div key={entry.question} className="p-5">
-                  <p className="font-medium text-text-primary">{entry.question}</p>
-                  <p className="mt-1.5 text-sm leading-relaxed text-text-muted">{entry.answer}</p>
-                </div>
-              ))}
-            </div>
-          </Reveal>
-        )}
-
-        <Reveal delay={0.2} className="mt-12">
-          <Button variant="aurora" size="lg" className="w-full sm:w-auto" onClick={() => setOrderOpen(true)}>
-            <ShoppingBag className="h-4 w-4" /> Place Order · {activeTier.label}
-          </Button>
-        </Reveal>
       </div>
-
-      <OrderModal
-        open={orderOpen}
-        onClose={() => setOrderOpen(false)}
-        gigId={gig.id}
-        tier={{
-          key: activeTier.key,
-          label: activeTier.label,
-          title: activeTier.title,
-          price: activeTier.price,
-          deliveryDays: activeTier.deliveryDays,
-          revisions: activeTier.revisions,
-        }}
-      />
     </div>
   )
 }

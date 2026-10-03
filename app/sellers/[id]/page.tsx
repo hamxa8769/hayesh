@@ -1,234 +1,144 @@
-"use client"
-
+import { cache } from "react"
+import type { Metadata } from "next"
+import { notFound } from "next/navigation"
 import { BackButton } from "@/components/navigation/BackButton"
-import { useEffect, useState } from "react"
-import { useParams } from "next/navigation"
-import { ShoppingBag } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { Reveal } from "@/components/motion/Reveal"
-import { Stagger } from "@/components/motion/Stagger"
-import { createClient } from "@/lib/supabase/client"
-import { formatDateTime } from "@/lib/utils/format"
-import { RatingStars } from "@/components/teacher-public/RatingStars"
-import { GigCard } from "@/components/marketplace/GigCard"
-import type { Gig, Seller, SellerLevel } from "@/types/database"
+import { createClient } from "@/lib/supabase/server"
+import { Section } from "@/components/gig-detail/section"
+import { GigCardGrid, type GigWithSeller } from "@/components/gig-detail/gig-card-grid"
+import type { DetailSeller } from "@/components/gig-detail/gig-data"
+import { SellerHeader } from "@/components/seller-profile/seller-header"
+import { SellerStats } from "@/components/seller-profile/seller-stats"
+import { SellerReviews, type SellerReviewItem } from "@/components/seller-profile/seller-reviews"
+import { PortfolioLinks } from "@/components/seller-profile/portfolio-links"
 
-const LEVEL_LABELS: Record<SellerLevel, string> = {
-  new: "New Seller",
-  rising: "Rising Talent",
-  top: "Top Rated",
-  elite: "Hayesh Elite",
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const SELLER_COLUMNS =
+  "id, user_id, display_name, tagline, avatar_url, level, is_online, last_seen_at, average_rating, total_reviews, response_time_hrs, completed_orders, total_orders, skills, languages, portfolio_urls, created_at"
+
+type ProfileSeller = DetailSeller & { portfolio_urls: string[] | null }
+
+const loadSeller = cache(async (id: string): Promise<ProfileSeller | null> => {
+  if (!UUID_RE.test(id)) return null
+  const supabase = await createClient()
+  const { data } = await supabase.from("sellers").select(SELLER_COLUMNS).eq("id", id).eq("status", "approved").maybeSingle()
+  return (data as ProfileSeller | null) ?? null
+})
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const seller = await loadSeller(id)
+  if (!seller) return { title: "Seller not found" }
+  const description = seller.tagline || `${seller.display_name} on Hayesh — services, reviews and portfolio.`
+  return {
+    title: seller.display_name,
+    description,
+    openGraph: { title: seller.display_name, description, type: "profile", ...(seller.avatar_url ? { images: [{ url: seller.avatar_url }] } : {}) },
+  }
 }
 
-function levelBadgeVariant(level: SellerLevel): "aurora" | "secondary" {
-  return level === "top" || level === "elite" ? "aurora" : "secondary"
-}
+export default async function SellerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const seller = await loadSeller(id)
+  if (!seller) notFound()
 
-function getInitials(name: string | null): string {
-  if (!name) return "?"
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("")
-}
+  const supabase = await createClient()
+  const [gigsRes, reviewsRes] = await Promise.all([
+    supabase
+      .from("gigs")
+      .select("*, sellers(display_name, avatar_url, level)")
+      .eq("seller_id", seller.id)
+      .eq("status", "approved")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("gig_reviews")
+      .select("id, gig_id, reviewer_name, rating, comment, created_at")
+      .eq("seller_id", seller.id)
+      .eq("status", "published")
+      .order("created_at", { ascending: false })
+      .limit(6),
+  ])
 
-interface StatTile {
-  label: string
-  value: string
-}
+  const gigs = (gigsRes.data ?? []) as unknown as GigWithSeller[]
 
-function buildStatTiles(seller: Seller): StatTile[] {
-  const tiles: StatTile[] = []
-  if (seller.total_orders) tiles.push({ label: "Orders", value: seller.total_orders.toLocaleString() })
-  if (seller.completed_orders) tiles.push({ label: "Completed", value: seller.completed_orders.toLocaleString() })
-  if (seller.average_rating) tiles.push({ label: "Avg Rating", value: seller.average_rating.toFixed(1) })
-  if (seller.response_time_hrs) tiles.push({ label: "Response Time", value: `${seller.response_time_hrs}h` })
-  return tiles
-}
-
-export default function SellerDetailPage() {
-  const { id } = useParams()
-  const sellerId = String(id)
-  const [seller, setSeller] = useState<Seller | null>(null)
-  const [gigs, setGigs] = useState<Gig[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const load = async () => {
-      const supabase = createClient()
-      const { data: sellerData } = await supabase.from("sellers").select("*").eq("id", sellerId).maybeSingle()
-      setSeller(sellerData as Seller | null)
-
-      if (sellerData) {
-        const { data: gigsData } = await supabase
-          .from("gigs")
-          .select("*")
-          .eq("seller_id", sellerId)
-          .eq("status", "approved")
-          .order("created_at", { ascending: false })
-        setGigs((gigsData || []) as Gig[])
-      }
-      setLoading(false)
-    }
-    load()
-  }, [sellerId])
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="font-mono text-sm text-text-muted">Loading...</p>
-      </div>
-    )
+  // The reviews table may not exist on older databases — skip the block quietly.
+  let reviews: SellerReviewItem[] = []
+  if (!reviewsRes.error && reviewsRes.data && reviewsRes.data.length > 0) {
+    const rows = reviewsRes.data as Array<Omit<SellerReviewItem, "gig_title">>
+    const gigIds = Array.from(new Set(rows.map((r) => r.gig_id)))
+    const { data: titleRows } = await supabase.from("gigs").select("id, title").in("id", gigIds)
+    const titles = new Map(((titleRows ?? []) as Array<{ id: string; title: string }>).map((g) => [g.id, g.title]))
+    reviews = rows.map((r) => ({ ...r, gig_title: titles.get(r.gig_id) ?? null }))
   }
 
-  if (!seller) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-text-muted">Seller not found</p>
-      </div>
-    )
-  }
+  const skills = seller.skills ?? []
+  const languages = seller.languages ?? []
+  const portfolio = seller.portfolio_urls ?? []
+  const rating = seller.average_rating ?? 0
 
-  const skills = seller.skills || []
-  const languages = seller.languages || []
-  const portfolioUrls = seller.portfolio_urls || []
-  const statTiles = buildStatTiles(seller)
+  const stats = [
+    { label: "Orders completed", value: (seller.completed_orders ?? 0).toLocaleString("en-US") },
+    { label: "Rating", value: rating > 0 ? rating.toFixed(1) : "—" },
+    { label: "Reviews", value: (seller.total_reviews ?? 0).toLocaleString("en-US") },
+    { label: "Response time", value: seller.response_time_hrs ? `${seller.response_time_hrs}h` : "—" },
+  ]
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-4xl px-6 py-16 sm:px-10">
-        <BackButton fallbackHref="/marketplace" label="Back" className="mb-8" />
+    <div className="pb-16 pt-6">
+      <div className="mx-auto flex max-w-[1200px] flex-col gap-10 px-4 sm:px-6">
+        <BackButton fallbackHref="/marketplace" label="Back" className="self-start" />
 
-        {/* Identity header */}
-        <Reveal>
-          <div className="relative overflow-hidden rounded-lg border border-border bg-surface p-8">
-            <div className="absolute inset-x-0 top-0 h-[2px] aurora-bg" />
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-              {seller.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={seller.avatar_url}
-                  alt={seller.display_name}
-                  className="h-24 w-24 shrink-0 rounded-full border border-border object-cover"
-                />
-              ) : (
-                <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border border-border bg-surface-elevated font-mono text-xl font-semibold text-text-muted">
-                  {getInitials(seller.display_name)}
-                </div>
-              )}
+        <div className="flex flex-col gap-4">
+          <SellerHeader seller={seller} inquiryGigId={gigs[0]?.id ?? null} />
+          <SellerStats stats={stats} />
+        </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-balance font-display text-3xl font-semibold tracking-tight text-text-primary">
-                    {seller.display_name}
-                  </h1>
-                  {seller.level && <Badge variant={levelBadgeVariant(seller.level)}>{LEVEL_LABELS[seller.level]}</Badge>}
-                </div>
-                <p className="mt-1 text-text-muted">{seller.tagline || "Freelance seller"}</p>
-
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <RatingStars rating={seller.average_rating} size="sm" />
-                  {(seller.total_reviews ?? 0) > 0 && (
-                    <span className="font-mono text-xs tabular-nums text-text-muted">({seller.total_reviews})</span>
-                  )}
-                  {seller.is_online ? (
-                    <span className="inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.08em] text-accent-success">
-                      <span className="h-2 w-2 rounded-full bg-accent-success" aria-hidden="true" /> Online
-                    </span>
-                  ) : seller.last_seen_at ? (
-                    <span className="font-mono text-xs text-text-muted">Last seen {formatDateTime(seller.last_seen_at)}</span>
-                  ) : null}
-                </div>
+        {(skills.length > 0 || languages.length > 0) && (
+          <div className="grid gap-8 rounded-lg border border-border bg-surface p-5 sm:grid-cols-2 sm:p-6">
+            {skills.length > 0 && (
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Skills</p>
+                <ul className="mt-3 flex flex-wrap gap-2">
+                  {skills.map((s) => (
+                    <li key={s} className="rounded-full border border-border bg-surface-elevated px-3 py-1 text-sm text-text-primary">{s}</li>
+                  ))}
+                </ul>
               </div>
-            </div>
+            )}
+            {languages.length > 0 && (
+              <div>
+                <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Languages</p>
+                <ul className="mt-3 flex flex-wrap gap-2">
+                  {languages.map((l) => (
+                    <li key={l} className="rounded-full border border-border px-3 py-1 text-sm text-text-muted">{l}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-        </Reveal>
-
-        {/* Stats strip */}
-        {statTiles.length > 0 && (
-          <Reveal delay={0.03} className="mt-6">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {statTiles.map((tile) => (
-                <div key={tile.label} className="rounded-lg border border-border bg-surface p-4 text-center">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">{tile.label}</p>
-                  <p className="mt-1.5 font-mono text-xl font-semibold tabular-nums text-text-primary">{tile.value}</p>
-                </div>
-              ))}
-            </div>
-          </Reveal>
         )}
 
-        {/* Skills */}
-        {skills.length > 0 && (
-          <Reveal delay={0.06} className="mt-8">
-            <span className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Skills</span>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {skills.map((skill) => (
-                <span key={skill} className="rounded-full border border-border px-3 py-1 text-sm text-text-muted">
-                  {skill}
-                </span>
-              ))}
-            </div>
-          </Reveal>
-        )}
-
-        {/* Languages */}
-        {languages.length > 0 && (
-          <Reveal delay={0.09} className="mt-8">
-            <span className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Languages</span>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {languages.map((lang) => (
-                <span
-                  key={lang}
-                  className="rounded-full border border-accent-primary/30 bg-accent-primary/10 px-3 py-1 font-mono text-xs uppercase tracking-[0.06em] text-accent-primary"
-                >
-                  {lang}
-                </span>
-              ))}
-            </div>
-          </Reveal>
-        )}
-
-        {/* Portfolio */}
-        {portfolioUrls.length > 0 && (
-          <Reveal delay={0.12} className="mt-8">
-            <span className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Portfolio</span>
-            <div className="mt-3 grid gap-3 sm:grid-cols-3">
-              {portfolioUrls.map((url, i) => (
-                <div key={url} className="aspect-video overflow-hidden rounded-lg border border-border">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    alt={`${seller.display_name} portfolio item ${i + 1}`}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              ))}
-            </div>
-          </Reveal>
-        )}
-
-        {/* Gigs by this seller */}
-        <Reveal delay={0.15} className="mt-8">
-          <span className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.12em] text-text-muted">
-            <ShoppingBag className="h-3.5 w-3.5" /> Gigs by {seller.display_name}
-          </span>
+        <Section eyebrow="Services" title={`Services by ${seller.display_name}`}>
           {gigs.length === 0 ? (
-            <div className="mt-3 rounded-lg border border-border bg-surface p-10 text-center">
-              <p className="text-sm text-text-muted">No active gigs yet</p>
+            <div className="rounded-lg border border-dashed border-line-strong bg-surface px-6 py-14 text-center text-sm text-text-muted">
+              No active services yet.
             </div>
           ) : (
-            <Stagger className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3" staggerDelay={0.06}>
-              {gigs.map((g) => (
-                <Reveal key={g.id}>
-                  <GigCard gig={g} />
-                </Reveal>
-              ))}
-            </Stagger>
+            <GigCardGrid gigs={gigs} columns={4} />
           )}
-        </Reveal>
+        </Section>
+
+        {reviews.length > 0 && (
+          <Section eyebrow="Feedback" title="Recent reviews">
+            <SellerReviews reviews={reviews} />
+          </Section>
+        )}
+
+        {portfolio.length > 0 && (
+          <Section eyebrow="Work" title="Portfolio">
+            <PortfolioLinks urls={portfolio} name={seller.display_name} />
+          </Section>
+        )}
       </div>
     </div>
   )

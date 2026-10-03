@@ -61,6 +61,11 @@
 - JARVIS assistant answering from the user's real data (read-only, role-scoped).
 
 ### 2.4 Website & UX
+- **Explore** (the signed-in home): personal greeting, search with suggestions, role-aware shortcuts, category rail, curated sections (top tutors, popular services, AI Studio, new), and a full results mode with filters (type, category, price, rating) + 6 sort orders.
+- **Gig page**: gallery, sticky package panel (Basic/Standard/Premium), package comparison table, FAQ, about-the-seller card, **reviews with rating breakdown**, "More from this seller", "You may also like", and **Message seller** before ordering.
+- **Seller profile**: header, stats, skills, all gigs, recent reviews, portfolio.
+- **Reviews**: buyers review completed orders, sellers reply; **admin moderation** (/admin/reviews) with "show reviews" and "require approval" switches.
+- Sign-in / sign-out update every open page instantly (including other tabs).
 - Landing page with trust/escrow section; modern gig & teacher cards everywhere.
 - **Navigation fixed:** Meetings, Messages, My Orders and Checkout open inside the user's dashboard; marketplace/teacher/AI pages have site header + footer; detail pages have a working Back button; "Explore" in every sidebar.
 - Terms, Privacy, Refund policy, Contact pages.
@@ -110,7 +115,7 @@ confirmation) is the planned upgrade once a merchant account exists.
 
 ## 4b. What YOU must do before going public
 
-1. **Supabase → SQL Editor:** run `supabase-migrations/016` → `024` in order (020 updated — use the latest file).
+1. **Supabase → SQL Editor:** run `supabase-migrations/016` → `025` in order (020 updated — use the latest file; 025 adds gig reviews + inquiries).
 2. **Vercel → Settings → Environment Variables**, then redeploy:
    - Required: `NEXT_PUBLIC_APP_URL`, `FIELD_ENCRYPTION_KEY` (`openssl rand -base64 32`, never change it later), `CRON_SECRET`, `ANTHROPIC_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
    - Recommended: `RESEND_API_KEY` + `EMAIL_FROM`, `NEXT_PUBLIC_SUPPORT_EMAIL` / `NEXT_PUBLIC_SUPPORT_WHATSAPP`, LiveKit keys.
