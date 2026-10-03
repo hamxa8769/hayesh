@@ -38,7 +38,7 @@ export function LegalPage({ title, intro, sections }: LegalPageProps) {
               <li key={s.id}>
                 <a
                   href={`#${s.id}`}
-                  className="flex gap-3 text-sm text-text-muted transition-colors duration-150 hover:text-text-primary"
+                  className="flex gap-3 py-1.5 text-sm text-text-muted transition-colors duration-150 hover:text-text-primary sm:py-0.5"
                 >
                   <span className="font-mono tabular-nums text-text-disabled">{pad(i + 1)}</span>
                   <span>{s.heading}</span>

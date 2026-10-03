@@ -60,12 +60,12 @@ export function LandingFooter() {
           {FOOTER_COLUMNS.map((column) => (
             <div key={column.title}>
               <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-text-disabled">{column.title}</h3>
-              <ul className="mt-4 space-y-3">
+              <ul className="mt-3 space-y-1 sm:mt-4 sm:space-y-2">
                 {column.links.map((link) => (
                   <li key={link.label}>
                     <Link
                       href={link.href}
-                      className="text-sm text-text-muted transition-colors duration-150 hover:text-text-primary"
+                      className="inline-block py-1.5 text-sm text-text-muted transition-colors duration-150 hover:text-text-primary sm:py-0.5"
                     >
                       {link.label}
                     </Link>

@@ -16,8 +16,9 @@
 | | |
 |---|---|
 | Overall readiness | **Ready to launch on the manual payment rail** (bank / Raast / JazzCash / Easypaisa with admin verification) |
-| Automated tests | **24 end-to-end** browser tests (all passing) + **9 unit tests** |
-| Database | Schema + **24 migrations**, every one verified on real Postgres and re-runnable |
+| Automated tests | **25 end-to-end** browser tests (all passing on a fresh build + clean database) + **9 unit tests** |
+| Database | Schema + **25 migrations**, every one verified on real Postgres and re-runnable |
+| Design audit | **124 pages** (every role, desktop + mobile): no errors, no console errors, no horizontal scroll, no broken images |
 | Security | Two independent security reviews; all high/medium findings fixed |
 | What you must do | Run migrations, set env vars, fill payment accounts (section 4) |
 

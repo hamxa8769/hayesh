@@ -90,7 +90,7 @@ export function TeacherShowcase() {
           </div>
           <Link
             href="/teachers"
-            className="group flex items-center gap-1.5 font-mono text-sm uppercase tracking-[0.08em] text-text-muted transition-colors duration-150 hover:text-accent-primary"
+            className="group flex items-center gap-1.5 py-2 font-mono text-sm uppercase tracking-[0.08em] text-text-muted transition-colors duration-150 hover:text-accent-primary"
           >
             Explore all
             <ArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-1" />

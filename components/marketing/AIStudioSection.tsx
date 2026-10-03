@@ -75,7 +75,7 @@ export function AIStudioSection() {
           </div>
           <Link
             href="/ai-services"
-            className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-accent-primary transition-colors hover:text-text-primary"
+            className="inline-flex shrink-0 items-center gap-1.5 py-2 text-sm font-medium text-accent-primary transition-colors hover:text-text-primary"
           >
             Browse all services <ArrowRight className="h-4 w-4" />
           </Link>
