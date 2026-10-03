@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Calendar, Users, Wallet, UserCog, Search,
   ShoppingBag, Package, MessageSquare, GraduationCap, Cpu, CreditCard,
   Globe, AlertTriangle, Settings, ChevronLeft, ChevronRight, LogOut, X,
-  Star, Palette, Video, MessagesSquare, Compass,
+  Star, MessageSquareQuote, Palette, Video, MessagesSquare, Compass,
 } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { signOutAndReload } from "@/lib/auth/sign-out"
@@ -27,6 +27,7 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: Users, label: "Users", href: "/admin/users" },
     { icon: Cpu, label: "AI Services", href: "/admin/ai-services" },
     { icon: Star, label: "Endorsements", href: "/admin/endorsements" },
+    { icon: MessageSquareQuote, label: "Reviews", href: "/admin/reviews" },
     { icon: CreditCard, label: "Payments", href: "/admin/payments" },
     { icon: Globe, label: "Translation", href: "/admin/translation" },
     { icon: Palette, label: "Branding", href: "/admin/branding" },

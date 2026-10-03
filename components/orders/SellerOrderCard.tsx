@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils/cn"
 import { formatCurrency, formatDate } from "@/lib/utils/format"
 import { orderAmount, orderStatusMeta, postJson } from "@/components/orders/order-status"
+import { StarDisplay, useOrderReview } from "@/components/orders/GigReviewForm"
 import { MessageOrderButton } from "@/components/messages/MessageOrderButton"
 import { OrderActionModal, type OrderActionValues } from "@/components/orders/OrderActionModal"
-import type { GigOrder } from "@/types/database"
+import type { GigOrder, GigReview } from "@/types/database"
 
 export interface SellerOrderCardProps {
   order: GigOrder
@@ -19,8 +20,12 @@ type ModalKind = "deliver" | "dispute" | null
 
 export function SellerOrderCard({ order, onChanged }: SellerOrderCardProps) {
   const [modal, setModal] = useState<ModalKind>(null)
+  const [reply, setReply] = useState("")
+  const [replying, setReplying] = useState(false)
+  const [replyError, setReplyError] = useState<string | null>(null)
 
   const status = order.status ?? "pending"
+  const { review, setReview } = useOrderReview(order.id, status === "completed")
   const unpaid = status === "pending"
   const meta = unpaid ? { label: "Awaiting buyer payment", tone: "neutral" as const } : orderStatusMeta(status)
   const amount = orderAmount(order)
@@ -44,6 +49,21 @@ export function SellerOrderCard({ order, onChanged }: SellerOrderCardProps) {
     if (res.error) return res.error
     await onChanged()
     return null
+  }
+
+  const sendReply = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!review || reply.trim().length === 0) return
+    setReplying(true)
+    setReplyError(null)
+    const res = await postJson<{ review: GigReview }>(`/api/gig-reviews/${review.id}/reply`, { reply: reply.trim() })
+    setReplying(false)
+    if (res.error || !res.data) {
+      setReplyError(res.error ?? "Could not save your reply.")
+      return
+    }
+    setReview(res.data.review)
+    setReply("")
   }
 
   return (
@@ -101,6 +121,55 @@ export function SellerOrderCard({ order, onChanged }: SellerOrderCardProps) {
           <br />
           {order.dispute_reason}
         </p>
+      )}
+
+      {status === "completed" && review && (
+        <div className="mt-4 rounded-lg border border-border bg-surface p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">
+              Buyer review · {review.reviewer_name}
+            </p>
+            <StarDisplay rating={review.rating} />
+          </div>
+          {review.comment && <p className="mt-2 whitespace-pre-wrap text-sm text-text-primary">{review.comment}</p>}
+          {review.status !== "published" && (
+            <p className="mt-2 text-xs text-accent-warning">
+              {review.status === "pending" ? "Awaiting admin approval — not public yet." : "Hidden by an admin."}
+            </p>
+          )}
+          {review.seller_reply ? (
+            <p className="mt-2 border-t border-border pt-2 text-sm text-text-muted">
+              <span className="font-mono text-xs uppercase tracking-[0.12em]">Your reply</span>
+              <br />
+              {review.seller_reply}
+            </p>
+          ) : review.status !== "hidden" ? (
+            <form onSubmit={sendReply} className="mt-3 space-y-2">
+              <label htmlFor={`reply-${order.id}`} className="text-sm text-text-primary">
+                Reply publicly
+              </label>
+              <textarea
+                id={`reply-${order.id}`}
+                rows={2}
+                maxLength={1000}
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                placeholder="Thank the buyer or address their feedback…"
+                className="flex w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+              />
+              {replyError && (
+                <p role="alert" className="text-sm text-accent-danger">
+                  {replyError}
+                </p>
+              )}
+              <div className="flex justify-end">
+                <Button type="submit" variant="outline" size="sm" disabled={replying || reply.trim().length === 0}>
+                  Reply
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </div>
       )}
 
       {(canDeliver || canDispute || canMessage) && (

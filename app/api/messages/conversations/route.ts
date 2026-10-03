@@ -9,6 +9,7 @@ import type { Conversation } from "@/types/database"
 const bodySchema = z.union([
   z.object({ gig_order_id: z.string().uuid() }).strict(),
   z.object({ subscription_id: z.string().uuid() }).strict(),
+  z.object({ gig_id: z.string().uuid() }).strict(),
   z.object({ support: z.literal(true) }).strict(),
 ])
 
@@ -39,7 +40,7 @@ export async function GET(): Promise<NextResponse<ConversationListResponse | Err
 
   let query = admin
     .from("conversations")
-    .select("id, participant_a, participant_b, context, gig_order_id, subscription_id, last_message_at")
+    .select("id, participant_a, participant_b, context, gig_order_id, subscription_id, gig_id, last_message_at")
     .order("last_message_at", { ascending: false })
     .limit(100)
   // Inbox is the caller's own threads (admins can read others via RLS elsewhere).
@@ -54,12 +55,14 @@ export async function GET(): Promise<NextResponse<ConversationListResponse | Err
   )
   const orderIds = rows.map((c) => c.gig_order_id as string | null).filter((v): v is string => !!v)
   const subIds = rows.map((c) => c.subscription_id as string | null).filter((v): v is string => !!v)
+  const gigIds = Array.from(new Set(rows.map((c) => c.gig_id as string | null).filter((v): v is string => !!v)))
   const convIds = rows.map((c) => c.id as string)
 
-  const [profiles, orders, subs, recent] = await Promise.all([
+  const [profiles, orders, subs, gigs, recent] = await Promise.all([
     admin.from("profiles").select("id, full_name, avatar_url").in("id", otherIds),
     orderIds.length ? admin.from("gig_orders").select("id, gig_title").in("id", orderIds) : Promise.resolve({ data: [] }),
     subIds.length ? admin.from("subscriptions").select("id, child_name").in("id", subIds) : Promise.resolve({ data: [] }),
+    gigIds.length ? admin.from("gigs").select("id, title").in("id", gigIds) : Promise.resolve({ data: [] }),
     admin
       .from("messages")
       .select("conversation_id, content, read, receiver_id, created_at")
@@ -77,6 +80,9 @@ export async function GET(): Promise<NextResponse<ConversationListResponse | Err
   const childName = new Map<string, string>()
   for (const s of subs.data ?? []) childName.set(s.id as string, (s.child_name as string | null) ?? "")
 
+  const gigTitle = new Map<string, string>()
+  for (const g of gigs.data ?? []) gigTitle.set(g.id as string, (g.title as string | null) ?? "Gig")
+
   const preview = new Map<string, string>()
   const unread = new Map<string, number>()
   for (const m of recent.data ?? []) {
@@ -92,6 +98,7 @@ export async function GET(): Promise<NextResponse<ConversationListResponse | Err
     let label = "Hayesh Support"
     if (context === "order") label = orderTitle.get(c.gig_order_id as string) ?? "Order"
     if (context === "tuition") label = `Tuition · ${childName.get(c.subscription_id as string) || "Student"}`
+    if (context === "inquiry") label = `Inquiry · ${gigTitle.get(c.gig_id as string) ?? "Gig"}`
     return {
       id: c.id as string,
       context,

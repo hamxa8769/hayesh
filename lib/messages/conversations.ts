@@ -8,6 +8,7 @@ if (typeof window !== "undefined") {
 export type ConversationInput =
   | { gig_order_id: string }
   | { subscription_id: string }
+  | { gig_id: string }
   | { support: true }
 
 export type ConversationResult =
@@ -16,9 +17,10 @@ export type ConversationResult =
 
 interface Resolved {
   other: string
-  context: "order" | "tuition" | "support"
+  context: "order" | "tuition" | "support" | "inquiry"
   gigOrderId: string | null
   subscriptionId: string | null
+  gigId: string | null
 }
 
 const fail = (error: string, status: number): ConversationResult => ({ ok: false, error, status })
@@ -43,7 +45,24 @@ async function resolveRelationship(callerId: string, input: ConversationInput): 
     if (callerId === buyerId) other = sellerUserId
     else if (callerId === sellerUserId) other = buyerId
     else return { ok: false, error: "You are not part of this order", status: 403 }
-    return { ok: true, value: { other, context: "order", gigOrderId: order.id as string, subscriptionId: null } }
+    return { ok: true, value: { other, context: "order", gigOrderId: order.id as string, subscriptionId: null, gigId: null } }
+  }
+
+  if ("gig_id" in input) {
+    const { data: gig } = await admin
+      .from("gigs")
+      .select("id, seller_id, status")
+      .eq("id", input.gig_id)
+      .maybeSingle()
+    if (!gig || gig.status !== "approved") return { ok: false, error: "Gig not found", status: 404 }
+    const { data: seller } = await admin.from("sellers").select("user_id").eq("id", gig.seller_id).maybeSingle()
+    const sellerUserId = (seller?.user_id as string | undefined) ?? null
+    if (!sellerUserId) return { ok: false, error: "Seller not found", status: 404 }
+    if (sellerUserId === callerId) return { ok: false, error: "This is your own gig", status: 400 }
+    return {
+      ok: true,
+      value: { other: sellerUserId, context: "inquiry", gigOrderId: null, subscriptionId: null, gigId: gig.id as string },
+    }
   }
 
   if ("subscription_id" in input) {
@@ -61,7 +80,7 @@ async function resolveRelationship(callerId: string, input: ConversationInput): 
     if (callerId === parentId) other = teacherUserId
     else if (callerId === teacherUserId) other = parentId
     else return { ok: false, error: "You are not part of this tuition", status: 403 }
-    return { ok: true, value: { other, context: "tuition", gigOrderId: null, subscriptionId: sub.id as string } }
+    return { ok: true, value: { other, context: "tuition", gigOrderId: null, subscriptionId: sub.id as string, gigId: null } }
   }
 
   const { data: adminProfile } = await admin
@@ -74,7 +93,7 @@ async function resolveRelationship(callerId: string, input: ConversationInput): 
   const adminId = (adminProfile?.id as string | undefined) ?? null
   if (!adminId) return { ok: false, error: "Support is unavailable right now", status: 503 }
   if (adminId === callerId) return { ok: false, error: "You are the support account", status: 400 }
-  return { ok: true, value: { other: adminId, context: "support", gigOrderId: null, subscriptionId: null } }
+  return { ok: true, value: { other: adminId, context: "support", gigOrderId: null, subscriptionId: null, gigId: null } }
 }
 
 /**
@@ -92,7 +111,7 @@ export async function getOrCreateConversation(
 
   const resolved = await resolveRelationship(callerId, input)
   if (!resolved.ok) return fail(resolved.error, resolved.status)
-  const { other, context, gigOrderId, subscriptionId } = resolved.value
+  const { other, context, gigOrderId, subscriptionId, gigId } = resolved.value
 
   const [a, b] = callerId < other ? [callerId, other] : [other, callerId]
   const admin = createAdminClient()
@@ -106,6 +125,7 @@ export async function getOrCreateConversation(
       .eq("context", context)
     q = gigOrderId ? q.eq("gig_order_id", gigOrderId) : q.is("gig_order_id", null)
     q = subscriptionId ? q.eq("subscription_id", subscriptionId) : q.is("subscription_id", null)
+    q = gigId ? q.eq("gig_id", gigId) : q.is("gig_id", null)
     const { data } = await q.limit(1).maybeSingle()
     return (data?.id as string | undefined) ?? null
   }
@@ -121,6 +141,7 @@ export async function getOrCreateConversation(
       context,
       gig_order_id: gigOrderId,
       subscription_id: subscriptionId,
+      gig_id: gigId,
     })
     .select("id")
     .single()

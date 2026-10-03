@@ -36,6 +36,8 @@ const settingsFormSchema = z.object({
   maintenance_mode: z.boolean(),
   ui_theme_accent: z.enum(["aurora-jade-gold", "ocean-cyan", "ember-rose", "violet-nova"]),
   gig_auto_complete_days: numberField.int("Whole days only").min(1, "At least 1 day").max(30, "Cannot exceed 30 days"),
+  gig_reviews_enabled: z.boolean(),
+  gig_reviews_moderation: z.boolean(),
   featured_7d_price_pkr: numberField.min(0, "Cannot be negative"),
   featured_30d_price_pkr: numberField.min(0, "Cannot be negative"),
   payment_bank_name: z.string().trim().max(120),
@@ -63,6 +65,8 @@ const DEFAULTS: SettingsFormValues = {
   maintenance_mode: false,
   ui_theme_accent: "aurora-jade-gold",
   gig_auto_complete_days: 3,
+  gig_reviews_enabled: true,
+  gig_reviews_moderation: false,
   featured_7d_price_pkr: 1500,
   featured_30d_price_pkr: 5000,
   payment_bank_name: "",
@@ -127,6 +131,8 @@ function valuesFromRows(rows: PlatformSetting[]): SettingsFormValues {
     maintenance_mode: toBoolean(get("maintenance_mode"), DEFAULTS.maintenance_mode),
     ui_theme_accent: toThemeAccent(get("ui_theme_accent")),
     gig_auto_complete_days: toNumber(get("gig_auto_complete_days"), DEFAULTS.gig_auto_complete_days),
+    gig_reviews_enabled: toBoolean(get("gig_reviews_enabled"), DEFAULTS.gig_reviews_enabled),
+    gig_reviews_moderation: toBoolean(get("gig_reviews_moderation"), DEFAULTS.gig_reviews_moderation),
     featured_7d_price_pkr: toNumber(get("featured_7d_price_pkr"), DEFAULTS.featured_7d_price_pkr),
     featured_30d_price_pkr: toNumber(get("featured_30d_price_pkr"), DEFAULTS.featured_30d_price_pkr),
     payment_bank_name: toText(get("payment_bank_name")),
@@ -307,6 +313,36 @@ export function SettingsForm() {
             error={errors.gig_auto_complete_days?.message}
             registration={register("gig_auto_complete_days", { valueAsNumber: true })}
           />
+        </div>
+      </Section>
+
+      <Section
+        title="Gig reviews"
+        description="Buyers can review a gig once an order completes. Manage individual reviews under Reviews."
+      >
+        <div className="space-y-3">
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-surface-elevated p-3">
+            <input
+              type="checkbox"
+              {...register("gig_reviews_enabled")}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--color-accent-primary)]"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm text-text-primary">Show gig reviews publicly</span>
+              <span className="block text-xs text-text-muted">When off, reviews are hidden from gig pages.</span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-surface-elevated p-3">
+            <input
+              type="checkbox"
+              {...register("gig_reviews_moderation")}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--color-accent-primary)]"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm text-text-primary">Require approval before reviews are published</span>
+              <span className="block text-xs text-text-muted">New reviews wait in the Reviews queue until an admin publishes them.</span>
+            </span>
+          </label>
         </div>
       </Section>
 

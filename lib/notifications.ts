@@ -43,6 +43,8 @@ export type NotificationType =
   | "subscription_past_due"
   | "registration_paid"
   | "message_received"
+  | "review_received"
+  | "review_reply"
 
 /** Money / order lifecycle types that are also delivered by email. */
 const EMAIL_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set<NotificationType>([

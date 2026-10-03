@@ -681,9 +681,28 @@ export interface Conversation {
   id: string;
   participant_a: string;
   participant_b: string;
-  context: 'order' | 'tuition' | 'support';
+  context: 'order' | 'tuition' | 'support' | 'inquiry';
   gig_order_id: string | null;
   subscription_id: string | null;
+  gig_id: string | null;
   last_message_at: string | null;
   created_at: string | null;
+}
+
+export type GigReviewStatus = 'published' | 'pending' | 'hidden';
+
+export interface GigReview {
+  id: string;
+  gig_order_id: string;
+  gig_id: string;
+  seller_id: string;
+  buyer_id: string;
+  reviewer_name: string;
+  rating: number;
+  comment: string | null;
+  status: GigReviewStatus;
+  seller_reply: string | null;
+  seller_replied_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }

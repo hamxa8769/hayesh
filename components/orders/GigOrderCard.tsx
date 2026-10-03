@@ -14,6 +14,7 @@ import {
   postJson,
   type OrderTransaction,
 } from "@/components/orders/order-status"
+import { GigReviewForm, StarDisplay, useOrderReview } from "@/components/orders/GigReviewForm"
 import { MessageOrderButton } from "@/components/messages/MessageOrderButton"
 import { OrderActionModal, type OrderActionValues } from "@/components/orders/OrderActionModal"
 import type { GigOrder } from "@/types/database"
@@ -30,8 +31,11 @@ export function GigOrderCard({ order, transaction, onChanged }: GigOrderCardProp
   const [modal, setModal] = useState<ModalKind>(null)
   const [accepting, setAccepting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState(false)
+  const [justReviewed, setJustReviewed] = useState(false)
 
   const status = order.status ?? "pending"
+  const { review, loading: reviewLoading, setReview } = useOrderReview(order.id, status === "completed")
   const meta = orderStatusMeta(status)
   const amount = orderAmount(order)
   const used = order.revisions_used ?? 0
@@ -170,6 +174,41 @@ export function GigOrderCard({ order, transaction, onChanged }: GigOrderCardProp
           <br />
           {order.dispute_reason ?? "Under review by an admin."}
         </p>
+      )}
+
+      {status === "completed" && !reviewLoading && (
+        <div className="mt-4">
+          {review ? (
+            <div className="rounded-lg border border-border bg-surface p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Your review</p>
+                <StarDisplay rating={review.rating} />
+              </div>
+              {review.comment && <p className="mt-2 whitespace-pre-wrap text-sm text-text-primary">{review.comment}</p>}
+              {justReviewed && review.status === "published" && (
+                <p role="status" className="mt-2 text-xs text-accent-success">Thanks — your review is live.</p>
+              )}
+              {review.status === "pending" && (
+                <p role="status" className="mt-2 text-xs text-accent-warning">
+                  {justReviewed ? "Thanks — your review is awaiting approval." : "Awaiting approval — it will appear on the gig once published."}
+                </p>
+              )}
+              {review.seller_reply && (
+                <p className="mt-2 border-t border-border pt-2 text-sm text-text-muted">
+                  <span className="font-mono text-xs uppercase tracking-[0.12em]">Seller reply</span>
+                  <br />
+                  {review.seller_reply}
+                </p>
+              )}
+            </div>
+          ) : reviewing ? (
+            <GigReviewForm orderId={order.id} onSubmitted={(r) => { setReview(r); setReviewing(false); setJustReviewed(true) }} onCancel={() => setReviewing(false)} />
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={() => setReviewing(true)}>
+              Leave a review
+            </Button>
+          )}
+        </div>
       )}
 
       {error && (

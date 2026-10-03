@@ -48,6 +48,8 @@ const SETTINGS_SPEC = {
   payment_easypaisa_number: z.string().trim().max(30),
   payment_instructions: z.string().trim().max(1000),
   gig_auto_complete_days: z.number().int("Must be a whole number of days").min(1, "At least 1 day").max(30, "At most 30 days"),
+  gig_reviews_enabled: z.boolean(),
+  gig_reviews_moderation: z.boolean(),
   featured_7d_price_pkr: z.number().min(0, "Price cannot be negative"),
   featured_30d_price_pkr: z.number().min(0, "Price cannot be negative"),
 } as const
