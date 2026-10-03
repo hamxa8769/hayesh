@@ -11,14 +11,14 @@ interface GigCardGridProps {
 }
 
 const COLS: Record<NonNullable<GigCardGridProps["columns"]>, string> = {
-  2: "sm:grid-cols-2",
-  3: "sm:grid-cols-2 lg:grid-cols-3",
-  4: "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+  2: "",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-3 xl:grid-cols-4",
 }
 
 export function GigCardGrid({ gigs, columns = 2 }: GigCardGridProps) {
   return (
-    <div className={`grid gap-5 ${COLS[columns]}`}>
+    <div className={`grid grid-cols-2 gap-3 sm:gap-5 ${COLS[columns]}`}>
       {gigs.map((g) => (
         <GigCard key={g.id} gig={g} seller={g.sellers} />
       ))}

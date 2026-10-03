@@ -1,3 +1,4 @@
+import { experienceYearsFrom, lessonTypesFromPrices } from "@/components/cards/TeacherCard"
 /**
  * Shared data model for the /explore marketplace home. Pure (no React, no
  * browser APIs) so the server page can map rows and the client can filter,
@@ -34,6 +35,8 @@ export interface TeacherItem extends BaseItem {
   totalReviews: number
   totalStudents: number
   translationEnabled: boolean
+  lessonTypes: string[]
+  experienceYears: number | null
 }
 
 export interface GigItem extends BaseItem {
@@ -44,6 +47,8 @@ export interface GigItem extends BaseItem {
   sellerLevel: "new" | "rising" | "top" | "elite" | null
   deliveryDays: number | null
   orders: number
+  reviewCount: number
+  packageCount: number
 }
 
 export interface AiItem extends BaseItem {
@@ -67,6 +72,7 @@ export interface TeacherRow {
   display_name: string
   tagline: string | null
   subjects: Array<{ subject: string; level?: string | null }> | null
+  experience: unknown
   profile_photo_url: string | null
   average_rating: number | null
   total_reviews: number | null
@@ -97,6 +103,7 @@ export interface GigRow {
   basic_delivery_days: number | null
   average_rating: number | null
   total_orders: number | null
+  total_reviews: number | null
   is_featured: boolean | null
   featured_until: string | null
   created_at: string | null
@@ -173,6 +180,8 @@ export function teacherToItem(row: TeacherRow, now: number): TeacherItem {
     totalReviews: row.total_reviews ?? 0,
     totalStudents: row.total_students ?? 0,
     translationEnabled: Boolean(row.translation_enabled),
+    lessonTypes: lessonTypesFromPrices(row.private_price_pkr, row.standard_price_pkr, row.group_price_pkr),
+    experienceYears: experienceYearsFrom(row.experience),
   }
 }
 
@@ -198,6 +207,8 @@ export function gigToItem(row: GigRow, now: number): GigItem {
     sellerLevel: seller?.level ?? null,
     deliveryDays: row.basic_delivery_days,
     orders: row.total_orders ?? 0,
+    reviewCount: row.total_reviews ?? 0,
+    packageCount: [row.basic_price_pkr, row.standard_price_pkr, row.premium_price_pkr].filter((p) => typeof p === "number" && p > 0).length,
   }
 }
 

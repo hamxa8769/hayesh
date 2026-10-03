@@ -44,13 +44,13 @@ export default async function ExplorePage() {
     supabase
       .from("teachers")
       .select(
-        "id, display_name, tagline, subjects, profile_photo_url, average_rating, total_reviews, total_students, group_price_pkr, standard_price_pkr, private_price_pkr, translation_enabled, featured, featured_until, created_at",
+        "id, display_name, tagline, subjects, profile_photo_url, average_rating, total_reviews, total_students, group_price_pkr, standard_price_pkr, private_price_pkr, translation_enabled, featured, featured_until, created_at, experience",
       )
       .eq("status", "approved"),
     supabase
       .from("gigs")
       .select(
-        "id, title, category, gallery_urls, basic_price_pkr, standard_price_pkr, premium_price_pkr, basic_delivery_days, average_rating, total_orders, is_featured, featured_until, created_at, sellers(display_name, avatar_url, level)",
+        "id, title, category, gallery_urls, basic_price_pkr, standard_price_pkr, premium_price_pkr, basic_delivery_days, average_rating, total_orders, total_reviews, is_featured, featured_until, created_at, sellers(display_name, avatar_url, level)",
       )
       .eq("status", "approved"),
     // system_prompt / ai_model are deliberately NOT selected (revoked from clients,

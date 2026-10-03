@@ -97,7 +97,7 @@ export default function MarketplacePage() {
 
         <div className="mt-10">
           {loading ? (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label="Loading gigs">
+            <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4" aria-label="Loading gigs">
               {Array.from({ length: 8 }).map((_, i) => (
                 <GigCardSkeleton key={i} />
               ))}
@@ -108,7 +108,7 @@ export default function MarketplacePage() {
               <p className="mt-4 text-text-muted">No gigs found</p>
             </div>
           ) : (
-            <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" staggerDelay={0.04}>
+            <Stagger className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4" staggerDelay={0.04}>
               {filtered.map((g) => (
                 <Reveal key={g.id} className="h-full">
                   <GigCard gig={g} seller={g.sellers} featured={featuredSellers.has(g.seller_id) || undefined} />

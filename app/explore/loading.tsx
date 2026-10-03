@@ -39,7 +39,7 @@ export default function ExploreLoading() {
         </div>
         <div className="flex flex-col gap-5">
           <Bar className="h-7 w-48" />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-5">
             <GigCardSkeleton />
             <GigCardSkeleton />
             <AIServiceCardSkeleton />

@@ -41,31 +41,31 @@ export function AIServiceCard({
     <Link href={`/ai-services/${id}`} className={cn(CARD_LINK_CLASS, className)}>
       <article className={CARD_SURFACE_CLASS}>
         <CardCover category="AI" imageUrl={thumbnailUrl} alt={title} icon={Sparkles}>
-          <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-line-strong bg-background/80 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted backdrop-blur">
+          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full border border-line-strong bg-background/80 px-2 py-0.5 font-mono text-[9px] sm:left-3 sm:top-3 sm:px-2.5 sm:text-[10px] uppercase tracking-[0.1em] text-text-muted backdrop-blur">
             <Sparkles className="h-3 w-3 text-accent-secondary" aria-hidden="true" />
             HayeshAI
           </span>
-          <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full border border-accent-success/40 bg-accent-success/10 px-2.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-accent-success backdrop-blur">
+          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-accent-success/40 bg-accent-success/10 px-2 py-0.5 font-mono text-[9px] sm:right-3 sm:top-3 sm:px-2.5 sm:text-[10px] font-semibold uppercase tracking-[0.1em] text-accent-success backdrop-blur">
             <Zap className="h-3 w-3" aria-hidden="true" />
             Instant
           </span>
         </CardCover>
 
-        <div className="flex flex-1 flex-col gap-3 p-4">
-          <h3 className="line-clamp-2 min-h-[2.75rem] font-display text-base font-semibold leading-snug text-text-primary">
+        <div className="flex flex-1 flex-col gap-2 p-3 sm:gap-3 sm:p-4">
+          <h3 className="line-clamp-2 min-h-[2.5rem] font-display text-[13px] font-semibold sm:min-h-[2.75rem] sm:text-base leading-snug text-text-primary">
             {title}
           </h3>
-          <p className="line-clamp-2 min-h-[2.5rem] text-sm leading-relaxed text-text-muted">
+          <p className="hidden min-h-[2.5rem] text-sm leading-relaxed text-text-muted sm:line-clamp-2">
             {description || "Delivered automatically by HayeshAI."}
           </p>
 
-          <div className="flex items-center gap-1.5 text-xs">
+          <div className="flex items-center gap-1.5 text-[11px] sm:text-xs">
             {hasRating ? (
               <>
                 <Star className="h-3.5 w-3.5 fill-accent-secondary text-accent-secondary" aria-hidden="true" />
                 <span className="font-mono font-semibold tabular-nums text-text-primary">{rating.toFixed(1)}</span>
                 {orders != null && orders > 0 && (
-                  <span className="font-mono tabular-nums text-text-muted">&middot; {orders} orders</span>
+                  <span className="hidden font-mono tabular-nums text-text-muted sm:inline">&middot; {orders} orders</span>
                 )}
               </>
             ) : (
@@ -75,15 +75,15 @@ export function AIServiceCard({
             )}
           </div>
 
-          <div className="mt-auto flex items-end justify-between gap-3 border-t border-border pt-3">
+          <div className="mt-auto flex items-end justify-between gap-2 border-t border-border pt-2 sm:gap-3 sm:pt-3">
             <div className="flex flex-col">
-              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">From</span>
-              <span className="font-mono text-base font-semibold tabular-nums text-text-primary">
+              <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-text-muted sm:text-[10px]">From</span>
+              <span className="font-mono text-sm font-semibold tabular-nums text-text-primary sm:text-base">
                 {price != null ? formatPKR(price) : "—"}
               </span>
             </div>
             {deliveryHrs != null && deliveryHrs > 0 && (
-              <span className="inline-flex items-center gap-1 pb-0.5 text-xs text-text-muted">
+              <span className="inline-flex items-center gap-1 pb-0.5 text-[11px] text-text-muted sm:text-xs">
                 <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                 {formatDelivery(deliveryHrs)}
               </span>

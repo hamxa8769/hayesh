@@ -25,6 +25,8 @@ export function GigCard({ gig, seller = null, featured, className }: GigCardProp
       count={gig.total_orders}
       startingPrice={minPrice(gig.basic_price_pkr, gig.standard_price_pkr, gig.premium_price_pkr)}
       deliveryDays={gig.basic_delivery_days}
+      reviewCount={gig.total_reviews}
+      packageCount={[gig.basic_price_pkr, gig.standard_price_pkr, gig.premium_price_pkr].filter((p) => typeof p === "number" && p > 0).length}
       featured={featured ?? isGigFeatured(gig)}
       className={className}
     />

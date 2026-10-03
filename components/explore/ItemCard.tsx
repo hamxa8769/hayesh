@@ -19,6 +19,8 @@ export function ItemCard({ item }: { item: ExploreItem }) {
           totalStudents={item.totalStudents}
           lowestPrice={item.price}
           translationEnabled={item.translationEnabled}
+          lessonTypes={item.lessonTypes}
+          experienceYears={item.experienceYears}
           featured={item.featured}
         />
       )
@@ -34,6 +36,8 @@ export function ItemCard({ item }: { item: ExploreItem }) {
           count={item.orders}
           startingPrice={item.price}
           deliveryDays={item.deliveryDays}
+          reviewCount={item.reviewCount}
+          packageCount={item.packageCount}
           featured={item.featured}
         />
       )

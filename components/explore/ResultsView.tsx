@@ -128,9 +128,11 @@ export function ResultsView({ items, categories }: { items: ExploreItem[]; categ
             </Button>
           </div>
         ) : (
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+          <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:gap-5">
             {results.map((item) => (
-              <li key={item.key} className="min-w-0">
+              // Tutor cards are text-rich, so they take a full row on phones;
+              // service/AI cards pair up two-per-row.
+              <li key={item.key} className={item.kind === "teacher" ? "col-span-2 min-w-0 sm:col-span-1" : "min-w-0"}>
                 <ItemCard item={item} />
               </li>
             ))}

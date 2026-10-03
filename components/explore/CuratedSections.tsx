@@ -38,7 +38,7 @@ function Section({ eyebrow, title, seeAll, gridClass, items, trailing }: Section
         </header>
         <ul className={gridClass}>
           {items.map((item) => (
-            <li key={item.key} className="min-w-0">
+            <li key={item.key} className={item.kind === "teacher" && gridClass === GRID_4 ? "col-span-2 min-w-0 sm:col-span-1" : "min-w-0"}>
               <ItemCard item={item} />
             </li>
           ))}
@@ -50,7 +50,7 @@ function Section({ eyebrow, title, seeAll, gridClass, items, trailing }: Section
 }
 
 const GRID_3 = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5"
-const GRID_4 = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5"
+const GRID_4 = "grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-5"
 
 function fitRows(list: ExploreItem[], cols: number, max: number): ExploreItem[] {
   const capped = list.slice(0, max)

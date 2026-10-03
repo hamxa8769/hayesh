@@ -14,6 +14,7 @@ interface ShowcaseGig {
   category: string
   average_rating: number | null
   total_orders: number | null
+  total_reviews: number | null
   basic_price_pkr: number | null
   standard_price_pkr: number | null
   premium_price_pkr: number | null
@@ -42,7 +43,7 @@ export function SellerShowcase() {
       const { data, error: queryError } = await supabase
         .from("gigs")
         .select(
-          "id, title, category, average_rating, total_orders, basic_price_pkr, standard_price_pkr, premium_price_pkr, basic_delivery_days, gallery_urls, is_featured, featured_until, seller_id, sellers(display_name, avatar_url, level)"
+          "id, title, category, average_rating, total_orders, total_reviews, basic_price_pkr, standard_price_pkr, premium_price_pkr, basic_delivery_days, gallery_urls, is_featured, featured_until, seller_id, sellers(display_name, avatar_url, level)"
         )
         .eq("status", "approved")
         .order("total_orders", { ascending: false })
@@ -89,7 +90,7 @@ export function SellerShowcase() {
 
         <div className="mt-12">
           {loading ? (
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4" aria-label="Loading services">
+            <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4" aria-label="Loading services">
               {Array.from({ length: 4 }).map((_unused, i) => (
                 <GigCardSkeleton key={i} />
               ))}
@@ -105,7 +106,7 @@ export function SellerShowcase() {
               <p className="mt-4 text-text-muted">Services coming soon</p>
             </div>
           ) : (
-            <Stagger className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4" staggerDelay={0.05}>
+            <Stagger className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4" staggerDelay={0.05}>
               {gigs.map((gig) => (
                 <Reveal key={gig.id} className="h-full">
                   <GigCard
@@ -118,6 +119,8 @@ export function SellerShowcase() {
                     count={gig.total_orders}
                     startingPrice={minPrice(gig.basic_price_pkr, gig.standard_price_pkr, gig.premium_price_pkr)}
                     deliveryDays={gig.basic_delivery_days}
+                    reviewCount={gig.total_reviews}
+                    packageCount={[gig.basic_price_pkr, gig.standard_price_pkr, gig.premium_price_pkr].filter((p) => typeof p === "number" && p > 0).length}
                     featured={isFeatured(gig)}
                   />
                 </Reveal>

@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { BadgeCheck, Star } from "lucide-react"
+import { BadgeCheck, Briefcase, Star, Users } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { formatPKR } from "@/lib/utils/format"
 import type { Teacher } from "@/types/database"
@@ -17,8 +17,35 @@ export interface TeacherCardProps {
   /** Lowest monthly price in PKR, null when no tier is priced. */
   lowestPrice: number | null
   translationEnabled?: boolean | null
+  /** Lesson formats offered, e.g. ["1-on-1", "Group"] — derived from which tiers have a price. */
+  lessonTypes?: string[]
+  /** Total years of teaching experience from the profile, when known. */
+  experienceYears?: number | null
   featured?: boolean
   className?: string
+}
+
+/** Lesson formats a teacher offers, from which monthly tiers are priced. */
+export function lessonTypesFromPrices(
+  privatePrice: number | null | undefined,
+  standardPrice: number | null | undefined,
+  groupPrice: number | null | undefined
+): string[] {
+  const types: string[] = []
+  if (privatePrice && privatePrice > 0) types.push("1-on-1")
+  if (standardPrice && standardPrice > 0) types.push("Small group")
+  if (groupPrice && groupPrice > 0) types.push("Group")
+  return types
+}
+
+/** Sums the numeric `years` of experience entries (ignores free-text values). */
+export function experienceYearsFrom(experience: unknown): number | null {
+  if (!Array.isArray(experience)) return null
+  const total = experience.reduce((sum: number, e: unknown) => {
+    const years = Number((e as { years?: unknown } | null)?.years)
+    return Number.isFinite(years) && years > 0 ? sum + years : sum
+  }, 0)
+  return total > 0 ? Math.round(total) : null
 }
 
 const MAX_SUBJECTS = 3
@@ -34,6 +61,8 @@ export function TeacherCard({
   totalStudents,
   lowestPrice,
   translationEnabled,
+  lessonTypes = [],
+  experienceYears,
   featured = false,
   className,
 }: TeacherCardProps) {
@@ -43,7 +72,7 @@ export function TeacherCard({
 
   return (
     <Link href={`/teachers/${id}`} className={cn(CARD_LINK_CLASS, className)}>
-      <article className={cn(CARD_SURFACE_CLASS, "gap-4 p-5")}>
+      <article className={cn(CARD_SURFACE_CLASS, "gap-3 p-4 sm:gap-4 sm:p-5")}>
         <div className="flex items-start gap-3.5">
           {photoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -51,19 +80,19 @@ export function TeacherCard({
               src={photoUrl}
               alt={displayName}
               loading="lazy"
-              className="h-14 w-14 shrink-0 rounded-full object-cover ring-2 ring-accent-primary/40 ring-offset-2 ring-offset-surface"
+              className="h-11 w-11 shrink-0 rounded-full object-cover ring-2 ring-accent-primary/40 ring-offset-2 ring-offset-surface sm:h-14 sm:w-14"
             />
           ) : (
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent-primary/10 font-mono text-base font-semibold text-accent-primary ring-2 ring-accent-primary/40 ring-offset-2 ring-offset-surface">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent-primary/10 font-mono text-sm font-semibold sm:h-14 sm:w-14 sm:text-base text-accent-primary ring-2 ring-accent-primary/40 ring-offset-2 ring-offset-surface">
               {getInitials(displayName)}
             </span>
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
-              <h3 className="truncate font-display text-base font-semibold text-text-primary">{displayName}</h3>
+              <h3 className="truncate font-display text-[15px] font-semibold text-text-primary sm:text-base">{displayName}</h3>
               <BadgeCheck className="h-4 w-4 shrink-0 text-accent-primary" aria-label="Verified teacher" />
             </div>
-            <p className="mt-0.5 line-clamp-1 text-sm text-text-muted">{tagline || "Verified teacher"}</p>
+            <p className="mt-0.5 line-clamp-1 text-xs text-text-muted sm:text-sm">{tagline || "Verified teacher"}</p>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {featured && (
                 <span className="rounded-full bg-accent-secondary px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-background">
@@ -81,7 +110,7 @@ export function TeacherCard({
 
         <div className="flex min-h-[1.75rem] flex-wrap content-start gap-1.5">
           {visible.map((subject) => (
-            <span key={subject} className="rounded-full border border-border bg-surface-elevated px-2.5 py-1 text-xs text-text-muted">
+            <span key={subject} className="rounded-full border border-border bg-surface-elevated px-2 py-0.5 text-[11px] text-text-muted sm:px-2.5 sm:py-1 sm:text-xs">
               {subject}
             </span>
           ))}
@@ -107,7 +136,24 @@ export function TeacherCard({
           )}
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-3 border-t border-border pt-3">
+        {(lessonTypes.length > 0 || (experienceYears != null && experienceYears > 0)) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-muted sm:text-xs">
+            {lessonTypes.length > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                {lessonTypes.join(" · ")}
+              </span>
+            )}
+            {experienceYears != null && experienceYears > 0 && (
+              <span className="inline-flex items-center gap-1">
+                <Briefcase className="h-3.5 w-3.5" aria-hidden="true" />
+                {experienceYears}+ yrs experience
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="mt-auto flex items-end justify-between gap-3 border-t border-border pt-2.5 sm:pt-3">
           <div className="flex flex-col">
             <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">From</span>
             <span className="font-mono text-base font-semibold tabular-nums text-text-primary">
@@ -168,6 +214,8 @@ export function teacherCardPropsFromRow(t: Teacher): Omit<TeacherCardProps, "cla
     totalStudents: t.total_students,
     lowestPrice: prices.length > 0 ? Math.min(...prices) : null,
     translationEnabled: t.translation_enabled,
+    lessonTypes: lessonTypesFromPrices(t.private_price_pkr, t.standard_price_pkr, t.group_price_pkr),
+    experienceYears: experienceYearsFrom(t.experience),
     featured: Boolean(t.featured) && (!t.featured_until || new Date(t.featured_until).getTime() > Date.now()),
   }
 }

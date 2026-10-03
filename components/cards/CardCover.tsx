@@ -77,10 +77,10 @@ export function CardCover({ category, imageUrl, alt = "", icon, className, child
         >
           <div className="absolute inset-0 flex items-center justify-center">
             <div
-              className="flex h-16 w-16 items-center justify-center rounded-lg border border-line-strong bg-surface/70"
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-line-strong bg-surface/70 sm:h-16 sm:w-16"
               style={{ color: tintVar }}
             >
-              <Icon className="h-8 w-8" strokeWidth={1.5} />
+              <Icon className="h-6 w-6 sm:h-8 sm:w-8" strokeWidth={1.5} />
             </div>
           </div>
         </div>
