@@ -73,7 +73,8 @@ export type SubscriptionStatus =
   | 'active'
   | 'paused'
   | 'cancelled'
-  | 'past_due';
+  | 'past_due'
+  | 'pending_payment';
 
 // Non-enum but constrained text columns documented via SQL comments.
 export type DemoBookingStatus =
@@ -101,7 +102,7 @@ export type PayoutRecipientType = 'teacher' | 'seller';
 
 export type PayoutStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
-export type PaymentProcessor = 'stripe' | 'simpaisa';
+export type PaymentProcessor = 'stripe' | 'simpaisa' | 'manual';
 
 // ============================================================
 // JSONB SUB-SHAPES
@@ -304,6 +305,7 @@ export interface Subscription {
   cancelled_at: string | null;
 
   sessions_per_week: number | null;
+  student_id: string | null;
 
   created_at: string | null;
   updated_at: string | null;
@@ -460,6 +462,9 @@ export interface GigOrder {
   dispute_resolved_at: string | null;
   dispute_resolution: string | null;
 
+  gig_title: string | null;
+  accepted_at: string | null;
+
   created_at: string | null;
   updated_at: string | null;
 }
@@ -548,8 +553,16 @@ export interface Transaction {
   bank_transfer_confirmed_by: string | null;
   bank_transfer_confirmed_at: string | null;
 
+  reference_code: string | null;
+  payer_reference: string | null;
+  proof_submitted_at: string | null;
+  rejection_reason: string | null;
+  description: string | null;
+  meta: Record<string, unknown> | null;
+
   paid_at: string | null;
   created_at: string | null;
+  updated_at: string | null;
 }
 
 /** public.payouts — teacher + seller payouts */
@@ -662,3 +675,34 @@ export type TableInsert<T> = Omit<T, 'id' | 'created_at' | 'updated_at'> &
   Partial<Pick<T, Extract<'id', keyof T>>> &
   Partial<Pick<T, Extract<'created_at', keyof T>>> &
   Partial<Pick<T, Extract<'updated_at', keyof T>>>;
+
+/** public.conversations — messaging thread between two related profiles (participant_a < participant_b) */
+export interface Conversation {
+  id: string;
+  participant_a: string;
+  participant_b: string;
+  context: 'order' | 'tuition' | 'support' | 'inquiry';
+  gig_order_id: string | null;
+  subscription_id: string | null;
+  gig_id: string | null;
+  last_message_at: string | null;
+  created_at: string | null;
+}
+
+export type GigReviewStatus = 'published' | 'pending' | 'hidden';
+
+export interface GigReview {
+  id: string;
+  gig_order_id: string;
+  gig_id: string;
+  seller_id: string;
+  buyer_id: string;
+  reviewer_name: string;
+  rating: number;
+  comment: string | null;
+  status: GigReviewStatus;
+  seller_reply: string | null;
+  seller_replied_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}

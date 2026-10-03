@@ -10,7 +10,7 @@ import {
 } from '@livekit/components-react'
 import { ConnectionState, ParticipantEvent, RoomEvent } from 'livekit-client'
 import type { RemoteParticipant } from 'livekit-client'
-import { X, WifiOff, UserPlus, Check } from 'lucide-react'
+import { X, WifiOff, UserPlus, Check, Presentation } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
 import { MeetingStage } from '@/components/video/MeetingStage'
 import { ControlDock } from '@/components/video/ControlDock'
@@ -18,6 +18,7 @@ import { ChatSheet } from '@/components/video/ChatSheet'
 import { ParticipantsSheet } from '@/components/video/ParticipantsSheet'
 import { ReactionsOverlay } from '@/components/video/ReactionsOverlay'
 import { Lobby } from '@/components/video/Lobby'
+import { ChatBubbles } from '@/components/video/ChatBubbles'
 import { useRoomMessaging } from '@/components/video/room-messaging'
 
 /**
@@ -288,6 +289,12 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
     markRead,
     isRecording,
     broadcastRecording,
+    presentRequests,
+    presentGranted,
+    presentRequestState,
+    requestPresent,
+    grantPresent,
+    denyPresent,
   } = useRoomMessaging()
 
   const [recordingPending, setRecordingPending] = useState(false)
@@ -460,6 +467,42 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
         </div>
       )}
 
+      {canModerate && presentRequests.length > 0 && (
+        // Request-to-present popup, stacked below the lobby popup position.
+        <div className="pointer-events-none absolute inset-x-0 top-14 z-40 flex justify-center p-2">
+          <div className="pointer-events-auto w-full max-w-sm rounded-lg border border-accent-warning/40 bg-surface p-4 shadow-[0_12px_40px_rgba(0,0,0,0.6)]">
+            <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-accent-warning">
+              <Presentation className="h-3.5 w-3.5" />
+              Request to present ({presentRequests.length})
+            </p>
+            <ul className="mt-3 space-y-2">
+              {presentRequests.map((request) => (
+                <li key={request.identity} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-sm text-text-primary">{request.name}</span>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => denyPresent(request.identity)}
+                      className="rounded-full border border-border px-3 py-1 text-xs font-medium text-text-muted transition-colors hover:border-accent-danger/40 hover:text-accent-danger"
+                    >
+                      Deny
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => grantPresent(request.identity)}
+                      className="flex items-center gap-1 rounded-full border border-accent-success/40 bg-accent-success/10 px-3 py-1 text-xs font-medium text-accent-success transition-colors hover:bg-accent-success/20"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Allow
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {isRecording && (
         <div className="pointer-events-none absolute right-2 top-2 z-20 sm:right-3 sm:top-3">
           <span className="flex items-center gap-1.5 rounded-full border border-accent-danger/40 bg-accent-danger/15 px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-accent-danger backdrop-blur">
@@ -494,6 +537,7 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
 
       <MeetingStage handsRaised={handsRaised} />
       <ReactionsOverlay reactions={reactions} />
+      <ChatBubbles messages={messages} hidden={chatOpen} />
 
       {recordError && (
         <div
@@ -520,9 +564,13 @@ function RoomInterior({ roomName, role, isHost, connectionError, onDismissError 
         onToggleRecording={handleToggleRecording}
         meetingLink={meetingLink}
         onShareLinkToChat={handleShareLinkToChat}
+        meetingId={meetingId}
+        canPresent={canModerate || presentGranted}
+        presentRequestState={presentRequestState}
+        onRequestPresent={requestPresent}
       />
 
-      <ChatSheet open={chatOpen} onClose={() => setChatOpen(false)} messages={messages} onSend={sendChat} />
+      <ChatSheet open={chatOpen} onClose={() => setChatOpen(false)} messages={messages} onSend={sendChat} meetingId={meetingId} />
       <ParticipantsSheet
         open={participantsOpen}
         onClose={() => setParticipantsOpen(false)}

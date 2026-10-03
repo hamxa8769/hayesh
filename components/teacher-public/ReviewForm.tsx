@@ -26,12 +26,20 @@ export interface ReviewFormProps {
   onSubmitted?: () => void
 }
 
+const NOT_ELIGIBLE_MESSAGE =
+  "Only parents who have booked a demo or enrolled with this teacher can leave a review."
+
+function isRlsRejection(error: { code?: string; message: string }): boolean {
+  return error.code === "42501" || /row-level security/i.test(error.message)
+}
+
 type ViewerState =
   | { status: "loading" }
   | { status: "signed-out" }
   | { status: "not-parent" }
   | { status: "already-reviewed"; review: TeacherReview }
   | { status: "can-review"; userId: string }
+  | { status: "editing"; userId: string; review: TeacherReview }
 
 export function ReviewForm({ teacherId, onSubmitted }: ReviewFormProps) {
   const [viewer, setViewer] = useState<ViewerState>({ status: "loading" })
@@ -71,10 +79,8 @@ export function ReviewForm({ teacherId, onSubmitted }: ReviewFormProps) {
         return
       }
 
-      // No unique constraint exists on (teacher_id, reviewer_id) in the
-      // schema (see the task's table note), so duplicate reviews are only
-      // prevented here in application logic: check for an existing review
-      // by this reviewer before showing the form at all.
+      // One review per (teacher, reviewer) is enforced by a unique index
+      // (migration 021); load the existing review so it can be edited.
       const { data: existing } = await supabase
         .from("teacher_reviews")
         .select("*")
@@ -98,42 +104,40 @@ export function ReviewForm({ teacherId, onSubmitted }: ReviewFormProps) {
   }, [teacherId])
 
   const submit = async (values: ReviewFormValues) => {
-    if (viewer.status !== "can-review") return
+    if (viewer.status !== "can-review" && viewer.status !== "editing") return
     setSubmitting(true)
     setSubmitError(null)
     try {
       const supabase = createClient()
 
-      // reviewer_id comes from the authenticated session, matching the
-      // "Reviewer can write their own review" RLS policy in migration 006
-      // (`with check (reviewer_id = auth.uid())`) — never from client state.
+      // reviewer_id comes from the authenticated session (never client state).
+      // RLS (migration 021) additionally requires a subscription or a
+      // confirmed/completed demo with this teacher. Upserting on the unique
+      // (teacher_id, reviewer_id) pair turns a second submit into an edit;
+      // a DB trigger keeps teachers.average_rating / total_reviews in sync.
       const { data, error } = await supabase
         .from("teacher_reviews")
-        .insert({
-          teacher_id: teacherId,
-          reviewer_id: viewer.userId,
-          rating: values.rating,
-          comment: values.comment || null,
-        })
+        .upsert(
+          {
+            teacher_id: teacherId,
+            reviewer_id: viewer.userId,
+            rating: values.rating,
+            comment: values.comment || null,
+          },
+          { onConflict: "teacher_id,reviewer_id" }
+        )
         .select("*")
         .maybeSingle()
 
       if (error) {
-        setSubmitError(error.message)
+        setSubmitError(isRlsRejection(error) ? NOT_ELIGIBLE_MESSAGE : error.message)
         return
       }
 
-      // TODO(server): teachers.average_rating / total_reviews are stored
-      // columns on public.teachers. A client cannot and must not update
-      // another table's aggregate directly (RLS + column grants correctly
-      // block that). Once a DB trigger (or a server route invoked after
-      // insert) maintains those columns, the page can read them directly
-      // again. Until then, the average shown on this page is computed live
-      // from the fetched rows in ReviewList, not from teachers.average_rating.
       if (data) {
         setViewer({ status: "already-reviewed", review: data as TeacherReview })
       }
-      reset()
+      reset({ rating: 0, comment: "" })
       onSubmitted?.()
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "Something went wrong. Please try again.")
@@ -166,7 +170,7 @@ export function ReviewForm({ teacherId, onSubmitted }: ReviewFormProps) {
   if (viewer.status === "not-parent") {
     return (
       <div className="rounded-lg border border-border bg-surface p-5 text-center">
-        <p className="text-sm text-text-muted">Only parent accounts can leave a teacher review.</p>
+        <p className="text-sm text-text-muted">{NOT_ELIGIBLE_MESSAGE}</p>
       </div>
     )
   }
@@ -179,6 +183,20 @@ export function ReviewForm({ teacherId, onSubmitted }: ReviewFormProps) {
         {viewer.review.comment && (
           <p className="mt-2 text-sm leading-relaxed text-text-muted">{viewer.review.comment}</p>
         )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3"
+          onClick={() => {
+            const review = viewer.review
+            reset({ rating: review.rating, comment: review.comment ?? "" })
+            setSubmitError(null)
+            setViewer({ status: "editing", userId: review.reviewer_id, review })
+          }}
+        >
+          Edit review
+        </Button>
       </div>
     )
   }
@@ -214,7 +232,7 @@ export function ReviewForm({ teacherId, onSubmitted }: ReviewFormProps) {
       <div className="flex justify-end">
         <Button type="submit" variant="aurora" disabled={submitting}>
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Submit Review
+          {viewer.status === "editing" ? "Update Review" : "Submit Review"}
         </Button>
       </div>
     </form>

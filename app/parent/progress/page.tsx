@@ -15,6 +15,7 @@ import {
   type TeacherNote,
 } from "@/components/parent/ProgressFeed"
 import { AssignmentSubmitModal } from "@/components/parent/AssignmentSubmitModal"
+import { MonthlyReportCard } from "@/components/parent/MonthlyReportCard"
 import { ProgressIsland } from "@/components/parent/ProgressIsland"
 import { cn } from "@/lib/utils/cn"
 import type { Student } from "@/components/parent/student-schema"
@@ -334,6 +335,15 @@ export default function ParentProgressPage() {
             </button>
           ))}
         </div>
+      )}
+
+      {user && selectedStudent && (
+        <MonthlyReportCard
+          key={selectedStudent.id}
+          userId={user.id}
+          studentId={selectedStudent.id}
+          childName={selectedStudent.full_name}
+        />
       )}
 
       {showProgressIsland && selectedStudent && (

@@ -9,9 +9,11 @@ import {
   Copy,
   Hand,
   MessageSquare,
+  Loader2,
   Mic,
   MicOff,
   PhoneOff,
+  Presentation,
   ScreenShare,
   ScreenShareOff,
   Share2,
@@ -20,6 +22,8 @@ import {
   Video,
   VideoOff,
 } from 'lucide-react'
+import { InviteePicker, type SelectedUser } from '@/components/meetings/InviteePicker'
+import type { PresentRequestState } from '@/components/video/room-messaging'
 import { cn } from '@/lib/utils/cn'
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '👏']
@@ -48,6 +52,15 @@ export interface ControlDockProps {
   meetingLink: string
   /** Posts the join link into the in-call chat. */
   onShareLinkToChat: () => void
+  /** The meeting uuid — target of the in-call invite endpoint. */
+  meetingId: string
+  /** Whether the local participant may share their screen right now
+   *  (host/admin always; attendees only after the host allows it). */
+  canPresent: boolean
+  /** State of the local participant's own "request to present". */
+  presentRequestState: PresentRequestState
+  /** Attendee: ask the host for permission to present. */
+  onRequestPresent: () => void
 }
 
 /** Fixed bottom control bar: mic/camera/screen-share toggles, reactions,
@@ -69,6 +82,10 @@ export function ControlDock({
   onToggleRecording,
   meetingLink,
   onShareLinkToChat,
+  meetingId,
+  canPresent,
+  presentRequestState,
+  onRequestPresent,
 }: ControlDockProps) {
   const { isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled, localParticipant } = useLocalParticipant()
   const [deviceError, setDeviceError] = useState<string | null>(null)
@@ -76,6 +93,9 @@ export function ControlDock({
   const [muteAllPending, setMuteAllPending] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [invitees, setInvitees] = useState<SelectedUser[]>([])
+  const [inviting, setInviting] = useState(false)
+  const [inviteNotice, setInviteNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   // Screen sharing needs getDisplayMedia, which mobile browsers don't expose —
   // detect on mount and hide the button rather than let it throw "not supported".
   const [canShareScreen, setCanShareScreen] = useState(false)
@@ -136,6 +156,37 @@ export function ControlDock({
       }
     } else {
       void handleCopyLink()
+    }
+  }
+
+  const handleInvite = async () => {
+    if (invitees.length === 0) return
+    setInviting(true)
+    setInviteNotice(null)
+    try {
+      const response = await fetch(`/api/meetings/${meetingId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invitee_ids: invitees.map((user) => user.id) }),
+      })
+      const data: { invited?: number; already_invited?: number; error?: string } = await response.json()
+      if (!response.ok) {
+        setInviteNotice({ tone: 'error', text: data.error ?? 'Could not send invitations' })
+        return
+      }
+      const invited = data.invited ?? 0
+      const already = data.already_invited ?? 0
+      setInvitees([])
+      setInviteNotice({
+        tone: 'success',
+        text:
+          `Invited ${invited} ${invited === 1 ? 'person' : 'people'}` +
+          (already > 0 ? ` (${already} already invited)` : ''),
+      })
+    } catch {
+      setInviteNotice({ tone: 'error', text: 'Network error — could not send invitations' })
+    } finally {
+      setInviting(false)
     }
   }
 
@@ -254,6 +305,36 @@ export function ControlDock({
                 <MessageSquare className="h-3.5 w-3.5" /> Send in chat
               </button>
             </div>
+            {canModerate && (
+              <div className="mt-3 border-t border-border pt-3">
+                <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted">
+                  Invite registered users
+                </p>
+                <div className="mt-2">
+                  <InviteePicker value={invitees} onChange={setInvitees} />
+                </div>
+                {inviteNotice && (
+                  <p
+                    role="status"
+                    className={cn(
+                      'mt-2 text-xs',
+                      inviteNotice.tone === 'success' ? 'text-accent-success' : 'text-accent-danger'
+                    )}
+                  >
+                    {inviteNotice.text}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleInvite}
+                  disabled={inviting || invitees.length === 0}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-accent-primary/40 bg-accent-primary/10 px-3 py-2 text-xs font-medium text-accent-primary transition-colors hover:bg-accent-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {inviting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {inviting ? 'Inviting…' : `Invite${invitees.length > 0 ? ` ${invitees.length}` : ''}`}
+                </button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -290,7 +371,37 @@ export function ControlDock({
             {isCameraEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
           </TrackToggle>
 
-          {canShareScreen && (
+          {canShareScreen && !canPresent && (
+            <button
+              type="button"
+              onClick={onRequestPresent}
+              disabled={presentRequestState === 'pending'}
+              aria-label={
+                presentRequestState === 'pending'
+                  ? 'Waiting for the host to allow presenting'
+                  : 'Request to present'
+              }
+              title={
+                presentRequestState === 'pending'
+                  ? 'Waiting for the host…'
+                  : presentRequestState === 'denied'
+                    ? 'The host declined — tap to ask again'
+                    : 'Request to present'
+              }
+              className={cn(
+                'relative flex h-12 w-12 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed',
+                presentRequestState === 'pending'
+                  ? 'border-accent-warning/40 bg-accent-warning/10 text-accent-warning'
+                  : presentRequestState === 'denied'
+                    ? 'border-accent-danger/40 bg-accent-danger/10 text-accent-danger'
+                    : 'border-border bg-surface-elevated text-text-primary hover:bg-surface'
+              )}
+            >
+              <Presentation className="h-5 w-5" />
+            </button>
+          )}
+
+          {canShareScreen && canPresent && (
             <TrackToggle
               source={Track.Source.ScreenShare}
               showIcon={false}

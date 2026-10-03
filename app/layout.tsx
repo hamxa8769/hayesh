@@ -1,8 +1,10 @@
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { ThemeProvider } from "@/components/providers/ThemeProvider"
+import { AuthSync } from "@/components/providers/AuthSync"
 import { BrandingProvider } from "@/components/branding/BrandingProvider"
 import { getBranding, buildBrandingStyleCss } from "@/lib/branding"
+import { getSiteUrl } from "@/lib/utils/site-url"
 import "./globals.css"
 
 const geist = Geist({
@@ -17,9 +19,29 @@ const geistMono = Geist_Mono({
   display: "swap",
 })
 
+const SITE_DESCRIPTION =
+  "Verified home tutors with a free demo lesson, monthly tuition plans, a freelance services marketplace, and instant HayeshAI Studio services."
+
 export const metadata: Metadata = {
-  title: "Hayesh — Tutoring Marketplace Platform",
-  description: "Connect with verified teachers, buy services, and leverage AI-powered tools.",
+  metadataBase: new URL(getSiteUrl()),
+  title: {
+    default: "Hayesh — Verified Tutors, Services & AI Studio",
+    template: "%s · Hayesh",
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: "Hayesh",
+  openGraph: {
+    type: "website",
+    siteName: "Hayesh",
+    title: "Hayesh — Verified Tutors, Services & AI Studio",
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Hayesh — Verified Tutors, Services & AI Studio",
+    description: SITE_DESCRIPTION,
+  },
+  robots: { index: true, follow: true },
 }
 
 // Sets data-theme on <html> synchronously, before first paint, so there is
@@ -55,7 +77,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="min-h-screen bg-background font-body text-text-primary antialiased" suppressHydrationWarning>
         <BrandingProvider branding={branding}>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <AuthSync />
+            {children}
+          </ThemeProvider>
         </BrandingProvider>
       </body>
     </html>

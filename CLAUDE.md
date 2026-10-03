@@ -422,16 +422,11 @@ Week 10 → Polish, performance, deploy to Vercel
 
 ## 🚀 Current Phase
 
-**Phase: WEEK 1 — Supabase Schema + Auth**
+**Phase: LAUNCH — commerce core shipped (checkout, escrow, renewals, AI fulfilment).**
 
-Next tasks:
-1. Install all dependencies
-2. Set up Supabase project + connect to Next.js
-3. Write complete database schema (all tables)
-4. Set up Supabase Auth with role-based access
-5. Create middleware for route protection
-6. Test all 5 user role login flows
+- Operator runbook (migrations, env vars, go-live checklist): `docs/PRODUCTION.md`
+- Remaining work, in priority order: `docs/ROADMAP.md` — start with Phase 0 (launch blockers)
 
 ---
 
-*Last updated: Project start — Week 1*
+*Last updated: Commerce release — see docs/ROADMAP.md*

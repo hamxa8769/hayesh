@@ -1,5 +1,5 @@
 "use client"
-
+import { safeRedirectPath } from "@/lib/utils/safe-redirect"
 import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { motion, useReducedMotion } from "framer-motion"
@@ -57,8 +57,9 @@ function CallbackContent() {
         }
         if (!role) await new Promise((r) => setTimeout(r, 400))
       }
-      const explicitRedirect = redirectTo && redirectTo !== "/" ? redirectTo : undefined
-      window.location.href = (role && roleMap[role]) || explicitRedirect || "/"
+      // Same-origin relative paths only (never "//evil.com").
+      const safeRedirect = safeRedirectPath(redirectTo)
+      window.location.href = safeRedirect || (role && roleMap[role]) || "/"
     }
     handle()
   }, [redirectTo, router, searchParams])

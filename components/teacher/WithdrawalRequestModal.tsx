@@ -23,6 +23,7 @@ export interface WithdrawalRequestModalProps {
 }
 
 const defaultValues: Partial<WithdrawalValues> = {
+  payout_account_id: "",
   currency: "PKR",
   payment_method: "ibft",
   bank_name: "",
@@ -30,6 +31,16 @@ const defaultValues: Partial<WithdrawalValues> = {
   iban: "",
   notes: "",
 }
+
+interface SavedAccount {
+  id: string
+  method: string
+  label: string | null
+  account_last4: string | null
+  is_default: boolean | null
+}
+
+const METHOD_LABEL: Record<string, string> = Object.fromEntries(PAYOUT_METHOD_OPTIONS.map((o) => [o.value, o.label]))
 
 export function WithdrawalRequestModal({ open, onClose, availableBalance, onSubmit }: WithdrawalRequestModalProps) {
   const prefersReducedMotion = useReducedMotion()
@@ -45,6 +56,7 @@ export function WithdrawalRequestModal({ open, onClose, availableBalance, onSubm
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<WithdrawalValues>({
     resolver: zodResolver(schema),
@@ -53,6 +65,28 @@ export function WithdrawalRequestModal({ open, onClose, availableBalance, onSubm
   })
 
   const paymentMethod = watch("payment_method")
+  const selectedAccountId = watch("payout_account_id") ?? ""
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([])
+
+  // Offer the withdrawal accounts saved under "Withdrawal Accounts" so the
+  // teacher/seller doesn't retype (and we don't re-collect) bank details.
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    fetch("/api/payout-accounts", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { accounts: [] }))
+      .then((body: { accounts?: SavedAccount[] }) => {
+        if (cancelled) return
+        const accounts = body.accounts ?? []
+        setSavedAccounts(accounts)
+        const preferred = accounts.find((a) => a.is_default) ?? accounts[0]
+        if (preferred) setValue("payout_account_id", preferred.id)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [open, setValue])
   const needsBankName = paymentMethod === "ibft" || paymentMethod === "bank_transfer"
 
   useEffect(() => {
@@ -180,6 +214,31 @@ export function WithdrawalRequestModal({ open, onClose, availableBalance, onSubm
                 </div>
               </div>
 
+              {savedAccounts.length > 0 && (
+                <fieldset className="space-y-2">
+                  <legend className="mb-1.5 text-sm font-medium text-text-primary">Withdraw to</legend>
+                  {savedAccounts.map((acc) => (
+                    <label
+                      key={acc.id}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface-elevated px-3 py-2.5 text-sm has-[:checked]:border-accent-primary/60"
+                    >
+                      <input type="radio" value={acc.id} {...register("payout_account_id")} className="accent-[var(--color-accent-primary)]" />
+                      <span className="flex-1 text-text-primary">
+                        {METHOD_LABEL[acc.method] ?? acc.method}
+                        {acc.label ? <span className="text-text-muted"> · {acc.label}</span> : null}
+                      </span>
+                      <span className="font-mono text-xs tabular-nums text-text-muted">••••{acc.account_last4 ?? ""}</span>
+                    </label>
+                  ))}
+                  <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface-elevated px-3 py-2.5 text-sm has-[:checked]:border-accent-primary/60">
+                    <input type="radio" value="" {...register("payout_account_id")} className="accent-[var(--color-accent-primary)]" />
+                    <span className="text-text-primary">Another account</span>
+                  </label>
+                </fieldset>
+              )}
+
+              {!selectedAccountId && (
+                <>
               <div className="space-y-1.5">
                 <Label htmlFor="wd-method">Payout Method</Label>
                 <select
@@ -215,6 +274,8 @@ export function WithdrawalRequestModal({ open, onClose, availableBalance, onSubm
                 <Input id="wd-iban" {...register("iban")} placeholder="PKXX XXXX XXXX XXXX XXXX XXXX" />
                 {errors.iban && <p className="text-xs text-accent-danger">{errors.iban.message}</p>}
               </div>
+                </>
+              )}
 
               <div className="space-y-1.5">
                 <Label htmlFor="wd-notes">Notes (optional)</Label>

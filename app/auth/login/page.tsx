@@ -1,5 +1,5 @@
 "use client"
-
+import { safeRedirectPath } from "@/lib/utils/safe-redirect"
 import { forwardRef, useState, Suspense, type ReactNode } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
@@ -98,8 +98,10 @@ function LoginForm() {
       }
       if (!role) await new Promise((r) => setTimeout(r, 350))
     }
-    const explicitRedirect = redirectTo && redirectTo !== "/" ? redirectTo : undefined
-    window.location.href = (role && roleMap[role]) || explicitRedirect || "/"
+    // Return the user to where they were (checkout, a teacher profile, …).
+    // Only same-origin relative paths are honoured — never "//evil.com".
+    const safeRedirect = safeRedirectPath(redirectTo)
+    window.location.href = safeRedirect || (role && roleMap[role]) || "/"
   }
 
   const signInWithGoogle = async () => {
@@ -122,7 +124,8 @@ function LoginForm() {
             <p className="mt-2 text-sm text-text-muted">Welcome back to your account</p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          {/* method="post": if JavaScript fails to load, a native submit must never put the password in the URL. */}
+          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <AuthField label="Email" type="email" placeholder="you@example.com" autoComplete="email"
               icon={<Mail className="h-4 w-4" />} error={errors.email?.message} {...register("email")} />
             <AuthField label="Password" type="password" placeholder="••••••••" autoComplete="current-password"

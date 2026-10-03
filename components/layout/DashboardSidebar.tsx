@@ -1,16 +1,16 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import {
   LayoutDashboard, Calendar, Users, Wallet, UserCog, Search,
   ShoppingBag, Package, MessageSquare, GraduationCap, Cpu, CreditCard,
   Globe, AlertTriangle, Settings, ChevronLeft, ChevronRight, LogOut, X,
-  Star, Palette, Video,
+  Star, MessageSquareQuote, Palette, Video, MessagesSquare, Compass,
 } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
-import { createClient } from "@/lib/supabase/client"
+import { signOutAndReload } from "@/lib/auth/sign-out"
 import type { UserRole } from "@/types/database"
 
 interface NavItem { icon: React.ComponentType<{ className?: string }>; label: string; href: string }
@@ -19,6 +19,7 @@ const navItems: Record<UserRole, NavItem[]> = {
   admin: [
     { icon: LayoutDashboard, label: "Overview", href: "/admin" },
     { icon: Video, label: "Meetings", href: "/meetings" },
+    { icon: MessagesSquare, label: "Messages", href: "/messages" },
     { icon: MessageSquare, label: "Requests", href: "/admin/requests" },
     { icon: AlertTriangle, label: "Support", href: "/admin/support" },
     { icon: GraduationCap, label: "Teachers", href: "/admin/teachers" },
@@ -26,15 +27,19 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: Users, label: "Users", href: "/admin/users" },
     { icon: Cpu, label: "AI Services", href: "/admin/ai-services" },
     { icon: Star, label: "Endorsements", href: "/admin/endorsements" },
+    { icon: MessageSquareQuote, label: "Reviews", href: "/admin/reviews" },
     { icon: CreditCard, label: "Payments", href: "/admin/payments" },
     { icon: Globe, label: "Translation", href: "/admin/translation" },
     { icon: Palette, label: "Branding", href: "/admin/branding" },
     { icon: AlertTriangle, label: "Disputes", href: "/admin/disputes" },
     { icon: Settings, label: "Settings", href: "/admin/settings" },
+    { icon: Compass, label: "Explore", href: "/explore" },
   ],
   teacher: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/teacher/dashboard" },
     { icon: Video, label: "Meetings", href: "/meetings" },
+    { icon: MessagesSquare, label: "Messages", href: "/messages" },
+    { icon: Package, label: "My Orders", href: "/orders" },
     { icon: Calendar, label: "Sessions", href: "/teacher/sessions" },
     { icon: Users, label: "Students", href: "/teacher/students" },
     { icon: GraduationCap, label: "Assignments", href: "/teacher/assignments" },
@@ -42,29 +47,37 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: Wallet, label: "Earnings", href: "/teacher/earnings" },
     { icon: UserCog, label: "Profile", href: "/teacher/profile" },
     { icon: AlertTriangle, label: "Support", href: "/teacher/support" },
+    { icon: Compass, label: "Explore", href: "/explore" },
   ],
   parent: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/parent/dashboard" },
     { icon: Video, label: "Meetings", href: "/meetings" },
+    { icon: MessagesSquare, label: "Messages", href: "/messages" },
+    { icon: Package, label: "My Orders", href: "/orders" },
     { icon: GraduationCap, label: "My Children", href: "/parent/students" },
     { icon: MessageSquare, label: "Requests", href: "/parent/requests" },
     { icon: Search, label: "Find Teachers", href: "/parent/find-teachers" },
     { icon: Users, label: "Progress", href: "/parent/progress" },
     { icon: CreditCard, label: "Payments", href: "/parent/payments" },
+    { icon: Compass, label: "Explore", href: "/explore" },
   ],
   seller: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/seller/dashboard" },
     { icon: Video, label: "Meetings", href: "/meetings" },
+    { icon: MessagesSquare, label: "Messages", href: "/messages" },
+    { icon: Package, label: "My Orders", href: "/orders" },
     { icon: Package, label: "My Gigs", href: "/seller/gigs" },
     { icon: ShoppingBag, label: "Orders", href: "/seller/orders" },
     { icon: Wallet, label: "Earnings", href: "/seller/earnings" },
     { icon: UserCog, label: "Profile", href: "/seller/profile" },
+    { icon: Compass, label: "Explore", href: "/explore" },
   ],
   buyer: [
     { icon: LayoutDashboard, label: "Dashboard", href: "/buyer/dashboard" },
     { icon: Video, label: "Meetings", href: "/meetings" },
     { icon: Package, label: "Orders", href: "/buyer/orders" },
-    { icon: MessageSquare, label: "Messages", href: "/buyer/messages" },
+    { icon: MessagesSquare, label: "Messages", href: "/messages" },
+    { icon: Compass, label: "Explore", href: "/explore" },
   ],
 }
 
@@ -79,11 +92,10 @@ interface Props { role: UserRole; collapsed: boolean; onToggle: () => void; mobi
 
 export function DashboardSidebar({ role, collapsed, onToggle, mobileOpen, onMobileClose }: Props) {
   const pathname = usePathname()
-  const router = useRouter()
   const prefersReducedMotion = useReducedMotion()
   const items = navItems[role] || []
 
-  const signOut = async () => { await createClient().auth.signOut(); router.push("/") }
+  const signOut = () => signOutAndReload()
 
   const renderNav = (onNavigate: () => void) => (
     <nav className="flex-1 space-y-1 px-2 py-2">

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
-import { encryptField } from "@/lib/crypto/field-encryption"
+import { decryptField, encryptField } from "@/lib/crypto/field-encryption"
+import { createAdminClient } from "@/lib/supabase/admin"
 
 /**
  * POST /api/payouts — teacher/seller withdrawal request intake.
@@ -33,7 +34,9 @@ const payoutRequestSchema = z.object({
   currency: z.enum(["PKR", "USD"]),
   payment_method: z.enum(["ibft", "jazzcash", "easypaisa", "bank_transfer", "stripe"]),
   bank_name: z.string().trim().max(120).optional(),
-  account_number: z.string().trim().min(4).max(60),
+  // Either a saved withdrawal account (decrypted server-side) or details typed in.
+  payout_account_id: z.string().uuid().optional(),
+  account_number: z.string().trim().min(4).max(60).optional(),
   iban: z.string().trim().max(40).optional(),
   notes: z.string().trim().max(300).optional(),
 })
@@ -85,13 +88,46 @@ export async function POST(request: Request): Promise<NextResponse<PayoutSuccess
     return NextResponse.json({ error: "Only teachers and sellers can request a payout" }, { status: 403 })
   }
 
+  // Resolve the destination: a saved account (owned by the caller) or typed details.
+  let paymentMethod: string = values.payment_method
+  let bankName: string | null = values.bank_name || null
+  let accountNumber: string | undefined = values.account_number
+  let iban: string | null = values.iban || null
+  if (values.payout_account_id) {
+    const { data: saved } = await createAdminClient()
+      .from("payment_methods")
+      .select("method, label, account_reference")
+      .eq("id", values.payout_account_id)
+      .eq("user_id", user.id)
+      .maybeSingle()
+    if (!saved?.account_reference) {
+      return NextResponse.json({ error: "That withdrawal account was not found. Please choose another." }, { status: 404 })
+    }
+    try {
+      const details = JSON.parse(decryptField(saved.account_reference as string)) as { account_number?: string; iban?: string | null }
+      accountNumber = details.account_number
+      iban = details.iban ?? null
+    } catch (e: unknown) {
+      console.error("saved payout account decrypt failed:", e instanceof Error ? e.message : e)
+      return NextResponse.json({ error: "We couldn't read that saved account. Please re-add it or enter the details manually." }, { status: 500 })
+    }
+    paymentMethod = (saved.method as string) || paymentMethod
+    bankName = (saved.label as string | null) ?? bankName
+  }
+  if (!accountNumber || accountNumber.trim().length < 4) {
+    return NextResponse.json({ error: "Enter the account number to send your withdrawal to" }, { status: 400 })
+  }
+
   let encryptedAccountNumber: string
   let encryptedIban: string | null
   try {
-    encryptedAccountNumber = encryptField(values.account_number)
-    encryptedIban = values.iban ? encryptField(values.iban) : null
+    encryptedAccountNumber = encryptField(accountNumber)
+    encryptedIban = iban ? encryptField(iban) : null
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "Encryption is not configured on the server"
+    // Operator misconfiguration (e.g. FIELD_ENCRYPTION_KEY missing): log the
+    // real reason server-side, never show it to the customer.
+    console.error("field encryption failed:", e instanceof Error ? e.message : e)
+    const message = "Bank details can't be saved right now because secure storage isn't configured. Please contact Hayesh support."
     return NextResponse.json({ error: message }, { status: 500 })
   }
 
@@ -104,8 +140,8 @@ export async function POST(request: Request): Promise<NextResponse<PayoutSuccess
       recipient_type: recipientType,
       amount: values.amount,
       currency: values.currency,
-      payment_method: values.payment_method,
-      bank_name: values.bank_name || null,
+      payment_method: paymentMethod,
+      bank_name: bankName,
       account_number: encryptedAccountNumber,
       iban: encryptedIban,
       notes: values.notes || null,

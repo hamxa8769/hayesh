@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { JarvisCard } from "@/components/ui/jarvis-card"
 import { useSupabase } from "@/hooks/useSupabase"
 import { RequestCard } from "@/components/parent/RequestCard"
+import { DemoLessonsPanel } from "@/components/parent/DemoLessonsPanel"
 import { RequestFormModal } from "@/components/parent/RequestFormModal"
 import type { Student, StudentRequestWithRelations, RequestValues } from "@/components/parent/student-schema"
 
@@ -129,6 +130,8 @@ export default function ParentRequestsPage() {
           Request a Teacher
         </Button>
       </motion.div>
+
+      {user && <DemoLessonsPanel parentId={user.id} />}
 
       {loading ? (
         <div className="space-y-3">

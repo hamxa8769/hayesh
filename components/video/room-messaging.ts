@@ -15,12 +15,31 @@ const HAYESH_TOPIC = 'hayesh'
 const MAX_MESSAGES = 200
 const REACTION_LIFETIME_MS = 4000
 
+/** A file shared in chat. The bytes live in the private `meeting-attachments`
+ *  bucket; `path` is `<meeting_id>/<uploader_id>/<timestamp>-<name>` and is
+ *  turned into a short-lived signed URL on click. */
+export interface ChatAttachment {
+  name: string
+  path: string
+  size: number
+  mime: string
+}
+
 export interface ChatMessage {
   id: string
   text: string
   senderName: string
   at: number
+  attachment?: ChatAttachment
 }
+
+/** A participant asking the host for permission to present (share screen). */
+export interface PresentRequest {
+  identity: string
+  name: string
+}
+
+export type PresentRequestState = 'idle' | 'pending' | 'denied'
 
 export interface TransientReaction {
   id: string
@@ -33,11 +52,39 @@ export interface ParticipantMeta {
   isHost?: boolean
 }
 
-type ChatEnvelope = { kind: 'chat'; id: string; text: string; senderName: string; at: number }
+type ChatEnvelope = {
+  kind: 'chat'
+  id: string
+  text: string
+  senderName: string
+  at: number
+  attachment?: ChatAttachment
+}
 type ReactionEnvelope = { kind: 'reaction'; emoji: string; senderName: string; at: number }
 type HandEnvelope = { kind: 'hand'; raised: boolean }
 type RecordingEnvelope = { kind: 'recording'; active: boolean }
-type RoomEnvelope = ChatEnvelope | ReactionEnvelope | HandEnvelope | RecordingEnvelope
+type RequestPresentEnvelope = { kind: 'request-present'; name: string }
+type PresentGrantedEnvelope = { kind: 'present-granted'; target: string }
+type PresentDeniedEnvelope = { kind: 'present-denied'; target: string }
+type RoomEnvelope =
+  | ChatEnvelope
+  | ReactionEnvelope
+  | HandEnvelope
+  | RecordingEnvelope
+  | RequestPresentEnvelope
+  | PresentGrantedEnvelope
+  | PresentDeniedEnvelope
+
+function isChatAttachment(value: unknown): value is ChatAttachment {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  return (
+    typeof v.name === 'string' &&
+    typeof v.path === 'string' &&
+    typeof v.size === 'number' &&
+    typeof v.mime === 'string'
+  )
+}
 
 /** Parses a LiveKit participant's `metadata` JSON string (set by
  *  app/api/livekit/token/route.ts as `{ role, isHost }`). Never throws —
@@ -59,7 +106,15 @@ export function parseParticipantMeta(metadata: string | undefined): ParticipantM
 function isRoomEnvelope(value: unknown): value is RoomEnvelope {
   if (typeof value !== 'object' || value === null) return false
   const kind = (value as { kind?: unknown }).kind
-  return kind === 'chat' || kind === 'reaction' || kind === 'hand' || kind === 'recording'
+  return (
+    kind === 'chat' ||
+    kind === 'reaction' ||
+    kind === 'hand' ||
+    kind === 'recording' ||
+    kind === 'request-present' ||
+    kind === 'present-granted' ||
+    kind === 'present-denied'
+  )
 }
 
 function decodeEnvelope(payload: Uint8Array): RoomEnvelope | null {
@@ -85,7 +140,7 @@ export interface UseRoomMessagingReturn {
   /** Keyed by participant identity. */
   handsRaised: Record<string, boolean>
   unreadCount: number
-  sendChat: (text: string) => void
+  sendChat: (text: string, attachment?: ChatAttachment) => void
   sendReaction: (emoji: string) => void
   raiseHand: (raised: boolean) => void
   /** Resets unreadCount to 0 — call when the chat sheet is opened. */
@@ -94,6 +149,18 @@ export interface UseRoomMessagingReturn {
   isRecording: boolean
   /** Broadcasts the recording state to everyone and applies it locally. */
   broadcastRecording: (active: boolean) => void
+  /** Host-side queue of pending "request to present" asks (oldest first). */
+  presentRequests: PresentRequest[]
+  /** True once a host/admin has allowed the local participant to present. */
+  presentGranted: boolean
+  /** Local state of this participant's own request. */
+  presentRequestState: PresentRequestState
+  /** Attendee: ask the host to present. */
+  requestPresent: () => void
+  /** Host/admin: allow a requester to present. */
+  grantPresent: (identity: string) => void
+  /** Host/admin: deny a requester. */
+  denyPresent: (identity: string) => void
 }
 
 /**
@@ -110,6 +177,14 @@ export function useRoomMessaging(): UseRoomMessagingReturn {
   const [handsRaised, setHandsRaised] = useState<Record<string, boolean>>({})
   const [unreadCount, setUnreadCount] = useState(0)
   const [isRecording, setIsRecording] = useState(false)
+  const [presentRequests, setPresentRequests] = useState<PresentRequest[]>([])
+  const [presentGranted, setPresentGranted] = useState(false)
+  const [presentRequestState, setPresentRequestState] = useState<PresentRequestState>('idle')
+
+  const localIdentityRef = useRef(localParticipant.identity)
+  useEffect(() => {
+    localIdentityRef.current = localParticipant.identity
+  }, [localParticipant.identity])
 
   const reactionTimeouts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
@@ -139,8 +214,40 @@ export function useRoomMessaging(): UseRoomMessagingReturn {
       if (!envelope) return
 
       if (envelope.kind === 'chat') {
-        appendChatMessage({ id: envelope.id, text: envelope.text, senderName: envelope.senderName, at: envelope.at })
+        appendChatMessage({
+          id: envelope.id,
+          text: envelope.text,
+          senderName: envelope.senderName,
+          at: envelope.at,
+          attachment: isChatAttachment(envelope.attachment) ? envelope.attachment : undefined,
+        })
         setUnreadCount((count) => count + 1)
+        return
+      }
+
+      if (envelope.kind === 'request-present') {
+        const requester = msg.from?.identity
+        if (!requester) return
+        setPresentRequests((current) =>
+          current.some((r) => r.identity === requester)
+            ? current
+            : [...current, { identity: requester, name: msg.from?.name || envelope.name || requester }]
+        )
+        return
+      }
+
+      if (envelope.kind === 'present-granted' || envelope.kind === 'present-denied') {
+        // Only honour decisions that come from the host or an admin, and only
+        // when addressed to us (the sender also targets us, this is a backstop).
+        const sender = parseParticipantMeta(msg.from?.metadata)
+        const fromModerator = sender.isHost === true || sender.role === 'admin'
+        if (!fromModerator || envelope.target !== localIdentityRef.current) return
+        if (envelope.kind === 'present-granted') {
+          setPresentGranted(true)
+          setPresentRequestState('idle')
+        } else {
+          setPresentRequestState('denied')
+        }
         return
       }
 
@@ -177,18 +284,25 @@ export function useRoomMessaging(): UseRoomMessagingReturn {
   }, [])
 
   const sendChat = useCallback(
-    (text: string) => {
+    (text: string, attachment?: ChatAttachment) => {
       const trimmed = text.trim().slice(0, 500)
-      if (!trimmed) return
+      if (!trimmed && !attachment) return
       const envelope: ChatEnvelope = {
         kind: 'chat',
         id: makeId(localParticipant.identity),
         text: trimmed,
         senderName: localParticipant.name || localParticipant.identity,
         at: Date.now(),
+        ...(attachment ? { attachment } : {}),
       }
       void send(encodeEnvelope(envelope), { reliable: true })
-      appendChatMessage({ id: envelope.id, text: envelope.text, senderName: envelope.senderName, at: envelope.at })
+      appendChatMessage({
+        id: envelope.id,
+        text: envelope.text,
+        senderName: envelope.senderName,
+        at: envelope.at,
+        attachment,
+      })
     },
     [appendChatMessage, localParticipant, send]
   )
@@ -225,6 +339,33 @@ export function useRoomMessaging(): UseRoomMessagingReturn {
     [send]
   )
 
+  const requestPresent = useCallback(() => {
+    const envelope: RequestPresentEnvelope = {
+      kind: 'request-present',
+      name: localParticipant.name || localParticipant.identity,
+    }
+    void send(encodeEnvelope(envelope), { reliable: true })
+    setPresentRequestState('pending')
+  }, [localParticipant, send])
+
+  const grantPresent = useCallback(
+    (identity: string) => {
+      const envelope: PresentGrantedEnvelope = { kind: 'present-granted', target: identity }
+      void send(encodeEnvelope(envelope), { reliable: true, destinationIdentities: [identity] })
+      setPresentRequests((current) => current.filter((r) => r.identity !== identity))
+    },
+    [send]
+  )
+
+  const denyPresent = useCallback(
+    (identity: string) => {
+      const envelope: PresentDeniedEnvelope = { kind: 'present-denied', target: identity }
+      void send(encodeEnvelope(envelope), { reliable: true, destinationIdentities: [identity] })
+      setPresentRequests((current) => current.filter((r) => r.identity !== identity))
+    },
+    [send]
+  )
+
   return {
     messages,
     reactions,
@@ -236,5 +377,11 @@ export function useRoomMessaging(): UseRoomMessagingReturn {
     markRead,
     isRecording,
     broadcastRecording,
+    presentRequests,
+    presentGranted,
+    presentRequestState,
+    requestPresent,
+    grantPresent,
+    denyPresent,
   }
 }

@@ -1,13 +1,15 @@
 "use client"
 
+import { BackButton } from "@/components/navigation/BackButton"
 import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { CalendarClock, ArrowLeft, Award, Briefcase, GraduationCap, Video } from "lucide-react"
+import { useParams } from "next/navigation"
+import { CalendarClock, Award, Briefcase, GraduationCap, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
 import { createClient } from "@/lib/supabase/client"
 import { formatPKR } from "@/lib/utils/format"
+import { EnrollModal, type EnrollTierKey, type EnrollTierOption } from "@/components/teacher-public/EnrollModal"
 import { DemoBookingModal } from "@/components/teacher-public/DemoBookingModal"
 import { RatingStars } from "@/components/teacher-public/RatingStars"
 import { ReviewList, type ReviewListSummary } from "@/components/teacher-public/ReviewList"
@@ -108,11 +110,12 @@ function isDirectVideoFile(url: string): boolean {
 
 export default function TeacherDetailPage() {
   const { id } = useParams()
-  const router = useRouter()
   const teacherId = String(id)
   const [teacher, setTeacher] = useState<TeacherWithEndorsement | null>(null)
   const [loading, setLoading] = useState(true)
   const [demoModalOpen, setDemoModalOpen] = useState(false)
+  const [enrollOpen, setEnrollOpen] = useState(false)
+  const [enrollTier, setEnrollTier] = useState<EnrollTierKey | undefined>(undefined)
   const [reviewSummary, setReviewSummary] = useState<ReviewListSummary | null>(null)
   const [reviewRefreshKey, setReviewRefreshKey] = useState(0)
 
@@ -148,6 +151,15 @@ export default function TeacherDetailPage() {
   const availability = teacher.availability || {}
   const hasAvailability = WEEKDAYS.some((d) => (availability[d.key]?.length ?? 0) > 0)
   const statTiles = buildStatTiles(teacher)
+  const enrollTiers: EnrollTierOption[] = [
+    { key: "group" as const, label: "Group Session", price: teacher.group_price_pkr },
+    { key: "standard" as const, label: "Standard", price: teacher.standard_price_pkr },
+    { key: "private" as const, label: "Private Session", price: teacher.private_price_pkr },
+  ].flatMap((t) => (t.price ? [{ key: t.key, label: t.label, price: t.price }] : []))
+  const openEnroll = (tier?: EnrollTierKey) => {
+    setEnrollTier(tier)
+    setEnrollOpen(true)
+  }
   const translationLanguages = teacher.translation_languages || []
 
   const introVideoUrl = teacher.intro_video_url
@@ -159,12 +171,7 @@ export default function TeacherDetailPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-4xl px-6 py-16 sm:px-10">
-        <button
-          onClick={() => router.back()}
-          className="mb-8 flex items-center gap-2 text-sm text-text-muted transition-colors duration-150 hover:text-text-primary"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
+        <BackButton fallbackHref="/teachers" label="Back" className="mb-8" />
 
         {/* Identity header */}
         <Reveal>
@@ -224,14 +231,16 @@ export default function TeacherDetailPage() {
             </div>
 
             {/* Primary CTA — above the fold, always visible in the header. */}
-            <Button
-              variant="aurora"
-              size="lg"
-              className="mt-6 w-full sm:w-auto"
-              onClick={() => setDemoModalOpen(true)}
-            >
-              Book a Free Demo
-            </Button>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Button variant="aurora" size="lg" className="w-full sm:w-auto" onClick={() => setDemoModalOpen(true)}>
+                Book a Free Demo
+              </Button>
+              {enrollTiers.length > 0 && (
+                <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={() => openEnroll()}>
+                  Enrol — pay monthly
+                </Button>
+              )}
+            </div>
           </div>
         </Reveal>
 
@@ -347,6 +356,10 @@ export default function TeacherDetailPage() {
               <div className="rounded-lg border border-border bg-surface p-5 text-center">
                 <p className="text-xs text-text-muted">Group Session</p>
                 <p className="mt-2 font-mono text-lg font-semibold tabular-nums text-text-primary">{formatPKR(teacher.group_price_pkr)}</p>
+                <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">per month</p>
+                <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => openEnroll("group")}>
+                  Enrol
+                </Button>
               </div>
             )}
             {teacher.standard_price_pkr && (
@@ -356,12 +369,20 @@ export default function TeacherDetailPage() {
                 </span>
                 <p className="text-xs text-text-muted">Standard</p>
                 <p className="mt-2 font-mono text-lg font-semibold tabular-nums text-text-primary">{formatPKR(teacher.standard_price_pkr)}</p>
+                <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">per month</p>
+                <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => openEnroll("standard")}>
+                  Enrol
+                </Button>
               </div>
             )}
             {teacher.private_price_pkr && (
               <div className="rounded-lg border border-border bg-surface p-5 text-center">
                 <p className="text-xs text-text-muted">Private Session</p>
                 <p className="mt-2 font-mono text-lg font-semibold tabular-nums text-text-primary">{formatPKR(teacher.private_price_pkr)}</p>
+                <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted">per month</p>
+                <Button variant="outline" size="sm" className="mt-3 w-full" onClick={() => openEnroll("private")}>
+                  Enrol
+                </Button>
               </div>
             )}
           </div>
@@ -440,6 +461,16 @@ export default function TeacherDetailPage() {
           </Button>
         </Reveal>
       </div>
+
+      <EnrollModal
+        open={enrollOpen}
+        onClose={() => setEnrollOpen(false)}
+        teacherId={teacherId}
+        teacherName={teacher.display_name}
+        tiers={enrollTiers}
+        subjects={subs}
+        initialTier={enrollTier}
+      />
 
       <DemoBookingModal
         open={demoModalOpen}

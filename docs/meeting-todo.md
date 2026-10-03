@@ -17,6 +17,7 @@ meeting work without re-deriving context. Last updated after commit `397e2ab`.
    - `supabase-migrations/016-meeting-invitations.sql` (group meetings + invitations)
    - `supabase-migrations/017-fix-meeting-invitations-recursion.sql` (RLS recursion fix)
    - `supabase-migrations/018-meeting-waiting-room.sql` (`waiting_room` column)
+   - `supabase-migrations/024-meeting-attachments.sql` (chat attachments bucket + RLS)
 3. LiveKit creds are set in `.env.local` (real values): `NEXT_PUBLIC_LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. `FIELD_ENCRYPTION_KEY` also set (payments).
 4. Recording is INERT until Egress + storage configured: set `LIVEKIT_EGRESS_S3_BUCKET`, `LIVEKIT_EGRESS_S3_ACCESS_KEY`, `LIVEKIT_EGRESS_S3_SECRET`, `LIVEKIT_EGRESS_S3_REGION` (LiveKit Cloud has Egress built in; point it at an S3 bucket).
 5. `.env.local` is gitignored — a cloud session won't have it, so cloud can build/commit but CANNOT live-test the call.
@@ -26,12 +27,16 @@ meeting work without re-deriving context. Last updated after commit `397e2ab`.
 - Key files: `components/video/{VideoRoom,MeetingStage,ControlDock,ChatSheet,ParticipantsSheet,BottomSheet,ReactionsOverlay,Avatar,room-messaging}.tsx`, `app/meet/[id]/page.tsx`, `app/meetings/page.tsx`, `components/meetings/*`, `app/api/livekit/{token,moderate,admit,record}/route.ts`, `app/api/meetings/{route,invitations,invitees}`.
 - In-room realtime (chat, reactions ✋, raise-hand, recording REC flag) all ride ONE LiveKit data-channel topic `"hayesh"` — see `components/video/room-messaging.ts` (`useRoomMessaging`). Add new in-room signals there as new envelope `kind`s.
 
-## PENDING — build in this order
-1. **Chat bubbles in the room** — show the last few chat messages as small transient bubbles over the stage so the host sees questions without opening the chat sheet. Data already in `useRoomMessaging().messages`. Watch out: don't overlap the primary tile's bottom-left name pill or the bottom filmstrip band (place e.g. mid-left, fade after ~8s).
-2. **Emoji picker in chat** (`ChatSheet.tsx`) — a small emoji button that inserts into the input. No backend needed.
-3. **Attendees request-to-present → host allow/deny** — attendees don't get the screen-share button by default; they get a "Request to present" button that broadcasts a `request-present` envelope on the data channel; host sees a popup to Allow/Deny; on allow, broadcast `present-granted` to that identity and the requester's ControlDock reveals the screen-share toggle (they already have canPublish). Pure data-channel + UI, no new endpoint. Also: when a screen is shared, the stage already takes over (single-focus) — confirm it closes other large video (it does).
-4. **In-call "Invite" of registered users by host** — add a small endpoint to add invitees to an EXISTING meeting (insert `meeting_invitations` rows for the organizer's allowed set via `lib/meetings/invitable.ts` `filterInvitable`, then `notifyUser`). Reuse `components/meetings/InviteePicker.tsx` inside the in-call Share popover (ControlDock) for host/admin. Note: host already invites registered users at meeting CREATION (the Host-a-Meeting modal) and everyone can share the link — this is specifically mid-call registered-user invite.
-5. **Chat attachment upload** — needs a Supabase Storage bucket (e.g. `meeting-attachments`) + an upload API route + RLS so only room participants can read; share the file URL as a chat envelope. Biggest item; needs the bucket created first.
+## DONE — second batch (all five former PENDING items)
+1. **Chat bubbles** — `components/video/ChatBubbles.tsx`: last 3 messages from the past ~8s, mid-left over the stage (clear of the name pill + filmstrip), hidden while the chat sheet is open, fade-only under `prefers-reduced-motion`.
+2. **Emoji picker** — ChatSheet has a smile button opening a 40-emoji grid (no dependency); inserts at the input caret.
+3. **Request-to-present** — new data-channel kinds `request-present` / `present-granted` / `present-denied` in `room-messaging.ts`. Attendees see a "Request to present" button instead of screen-share; host/admin gets an Allow/Deny popup; grants are targeted (`destinationIdentities`) and only honoured when sent by a host/admin (checked via sender metadata). NOTE: this is UI-level gating — attendee tokens still have `canPublish`, so it is not a hard server-side restriction.
+4. **In-call invite** — `POST /api/meetings/[id]/invite` `{ invitee_ids: uuid[1..50] }` (organizer or admin only; reuses `filterInvitable` + `notifyUser` "meeting_invite"; skips already-invited; returns `{ invited, already_invited }`). `InviteePicker` is embedded in the ControlDock Share popover for host/admin.
+5. **Chat attachments** — private bucket `meeting-attachments` (10 MB; images/pdf/docx/pptx/xlsx/txt) + storage RLS via `public.can_access_meeting()`; browser uploads to `<meeting_id>/<uid>/<ts>-<name>`; chat envelope carries `attachment { name, path, size, mime }`; recipients click a file chip -> `POST /api/meetings/[id]/attachments` `{ path }` returns a 120s signed URL (minted with the caller's own session so storage RLS authorises it). Client-side size/type validation in `components/video/chat-attachments.ts`.
+
+**New migration to run by hand:** `supabase-migrations/024-meeting-attachments.sql` (idempotent) — without it, attachment uploads fail (bucket missing).
+
+Not live-tested (no LiveKit server in the cloud session); verify in a real call: bubbles placement, request/allow flow, mid-call invite notification link `/meet/<id>`, upload + download chip.
 
 ## Other open items (unrelated to meetings, flagged earlier)
 - `/admin/disputes` is still a stub — decide escrow/refund flow vs support-ticket category.

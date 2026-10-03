@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Users, GraduationCap, ShoppingBag, Bot, DollarSign, ArrowUpRight } from "lucide-react"
+import { GraduationCap, ShoppingBag, ArrowUpRight } from "lucide-react"
 import { StatTile } from "@/components/dashboard/StatTile"
 import { PanelGroup } from "@/components/dashboard/PanelGroup"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
+import { SystemStatusPanel } from "@/components/admin/SystemStatusPanel"
 import { formatPKR, formatDate } from "@/lib/utils/format"
 import type { Transaction, PaymentStatus } from "@/types/database"
 
@@ -74,6 +75,8 @@ export default function AdminOverview() {
         <p className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Admin / Overview</p>
         <h1 className="mt-1 font-display text-2xl font-semibold text-text-primary sm:text-3xl">Platform Overview</h1>
       </Reveal>
+
+      <SystemStatusPanel />
 
       <PanelGroup title="Platform Metrics" className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <Link href="/admin/teachers">

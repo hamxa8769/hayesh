@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { Wallet } from "lucide-react"
 import { PanelGroup } from "@/components/dashboard/PanelGroup"
 import { StatusPill, statusToneFor } from "@/components/teacher/StatusPill"
@@ -26,13 +27,14 @@ export function TeacherTransactionsTable({ transactions, loading }: TeacherTrans
   return (
     <PanelGroup title="Transaction History">
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-        <table className="w-full min-w-[520px] border-collapse text-sm">
+        <table className="w-full min-w-[600px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left">
               <th className="px-4 py-3 font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Type</th>
               <th className="px-4 py-3 font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Date</th>
               <th className="px-4 py-3 font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Status</th>
               <th className="px-4 py-3 text-right font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Net Amount</th>
+              <th className="px-4 py-3 text-right font-mono text-xs font-normal uppercase tracking-[0.12em] text-text-muted">Receipt</th>
             </tr>
           </thead>
           <tbody>
@@ -47,6 +49,15 @@ export function TeacherTransactionsTable({ transactions, loading }: TeacherTrans
                 </td>
                 <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums text-accent-success">
                   {formatPKR(tx.net_amount || 0)}
+                </td>
+                <td className="px-4 py-3 text-right text-xs">
+                  {tx.status === "pending" || tx.status === "failed" ? (
+                    <span className="text-text-disabled">—</span>
+                  ) : (
+                    <Link href={`/receipts/${tx.id}`} target="_blank" className="text-accent-secondary hover:underline">
+                      Receipt
+                    </Link>
+                  )}
                 </td>
               </tr>
             ))}

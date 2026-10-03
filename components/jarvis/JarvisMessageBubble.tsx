@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import { AlertCircle, Bot } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
+import { JarvisMarkdown } from "@/components/jarvis/JarvisMarkdown"
 import type { JarvisMessage } from "@/components/jarvis/jarvis-types"
 
 interface JarvisMessageBubbleProps {
@@ -36,7 +37,7 @@ export function JarvisMessageBubble({ message, reducedMotion }: JarvisMessageBub
       )}
       <div
         className={cn(
-          "max-w-[80%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm leading-relaxed",
+          "max-w-[80%] rounded-lg px-3 py-2 text-sm leading-relaxed",
           isUser
             ? "bg-accent-primary text-white"
             : message.isError
@@ -44,7 +45,7 @@ export function JarvisMessageBubble({ message, reducedMotion }: JarvisMessageBub
               : "border border-border bg-surface text-text-primary"
         )}
       >
-        {message.content}
+        {isUser || message.isError ? message.content : <JarvisMarkdown text={message.content} />}
       </div>
     </motion.div>
   )

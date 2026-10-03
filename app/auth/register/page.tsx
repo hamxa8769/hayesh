@@ -201,7 +201,7 @@ export default function RegisterPage() {
                     </span>
                   </div>
 
-                  <form onSubmit={step2Form.handleSubmit(onSubmit)} className="space-y-4">
+                  <form method="post" onSubmit={step2Form.handleSubmit(onSubmit)} className="space-y-4">
                     <AuthField label="Full Name" placeholder="John Doe" autoComplete="name"
                       icon={<User className="h-4 w-4" />} error={step2Form.formState.errors.full_name?.message}
                       {...step2Form.register("full_name")} />

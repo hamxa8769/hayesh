@@ -10,7 +10,7 @@ import { formatPKR } from "@/lib/utils/format"
 
 export default function BuyerDashboard() {
   const { user } = useSupabase()
-  const [stats, setStats] = useState({ orders: 0, spent: 0 })
+  const [stats, setStats] = useState({ orders: 0, spent: 0, pending: 0 })
 
   useEffect(() => {
     if (!user) return
@@ -19,9 +19,14 @@ export default function BuyerDashboard() {
       const supabase = createClient()
       const [orders, tx] = await Promise.all([
         supabase.from("gig_orders").select("id", { count: "exact", head: true }).eq("buyer_id", user.id),
-        supabase.from("transactions").select("gross_amount").eq("payer_id", user.id).eq("status", "completed"),
+        supabase.from("transactions").select("gross_amount, status").eq("payer_id", user.id).in("status", ["completed", "processing", "pending"]),
       ])
-      setStats({ orders: orders.count || 0, spent: (tx.data || []).reduce((s, t) => s + (t.gross_amount || 0), 0) })
+      const rows = tx.data || []
+      setStats({
+        orders: orders.count || 0,
+        spent: rows.filter((t) => t.status !== "pending").reduce((s, t) => s + (t.gross_amount || 0), 0),
+        pending: rows.filter((t) => t.status === "pending").length,
+      })
     }
     load()
   }, [user])
@@ -42,6 +47,19 @@ export default function BuyerDashboard() {
           <p className="mt-1 font-mono text-2xl font-bold text-text-primary">{formatPKR(stats.spent)}</p>
         </JarvisCard>
       </div>
+
+      {stats.pending > 0 && (
+        <Link
+          href="/buyer/orders"
+          className="flex items-center justify-between gap-3 rounded-lg border border-accent-warning/30 bg-accent-warning/10 p-4 text-sm text-text-primary transition-colors hover:bg-accent-warning/20"
+        >
+          <span>
+            <span className="font-mono font-bold tabular-nums text-accent-warning">{stats.pending}</span> pending{" "}
+            {stats.pending === 1 ? "payment" : "payments"}
+          </span>
+          <span className="text-accent-secondary">View orders</span>
+        </Link>
+      )}
 
       <JarvisCard glow="none" className="p-6">
         <h3 className="mb-4 font-display text-lg font-bold">Quick Actions</h3>

@@ -5,11 +5,19 @@ import { motion } from "framer-motion"
 import { AlertTriangle, CreditCard, Plus, Receipt } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { JarvisCard } from "@/components/ui/jarvis-card"
-import { StatusPill, type PillTone } from "@/components/teacher/StatusPill"
+import Link from "next/link"
+import { StatusPill } from "@/components/teacher/StatusPill"
 import { useSupabase } from "@/hooks/useSupabase"
 import { PaymentMethodCard } from "@/components/parent/PaymentMethodCard"
 import { PaymentMethodModal } from "@/components/parent/PaymentMethodModal"
 import { formatCurrency, formatDate } from "@/lib/utils/format"
+import { PendingPaymentsPanel } from "@/components/orders/PendingPaymentsPanel"
+import {
+  ORDER_TRANSACTION_COLUMNS,
+  subscriptionStatusMeta,
+  transactionStatusMeta,
+  type OrderTransaction,
+} from "@/components/orders/order-status"
 import type { PaymentMethodFormValues, PaymentMethodListItem } from "@/components/parent/payment-schema"
 
 /**
@@ -32,17 +40,13 @@ interface SubscriptionWithTeacher {
   teachers: { display_name: string } | null
 }
 
-const SUBSCRIPTION_STATUS_TONE: Record<string, PillTone> = {
-  active: "success",
-  paused: "warning",
-  past_due: "danger",
-  cancelled: "neutral",
-}
+const HISTORY_LIMIT = 20
 
 export default function ParentPaymentsPage() {
   const { user } = useSupabase()
   const [methods, setMethods] = useState<PaymentMethodListItem[]>([])
   const [subscriptions, setSubscriptions] = useState<SubscriptionWithTeacher[]>([])
+  const [transactions, setTransactions] = useState<OrderTransaction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
@@ -55,7 +59,7 @@ export default function ParentPaymentsPage() {
       const { createClient } = await import("@/lib/supabase/client")
       const supabase = createClient()
 
-      const [methodsRes, subscriptionsRes] = await Promise.all([
+      const [methodsRes, subscriptionsRes, txRes] = await Promise.all([
         // account_reference is NEVER selected here — only the columns needed
         // to render a masked card. The ciphertext never reaches the browser.
         supabase
@@ -71,6 +75,12 @@ export default function ParentPaymentsPage() {
           )
           .eq("parent_id", user.id)
           .order("created_at", { ascending: false }),
+        supabase
+          .from("transactions")
+          .select(ORDER_TRANSACTION_COLUMNS)
+          .eq("payer_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(100),
       ])
 
       if (methodsRes.error) {
@@ -82,6 +92,12 @@ export default function ParentPaymentsPage() {
         return
       }
 
+      if (txRes.error) {
+        setError(txRes.error.message)
+        return
+      }
+
+      setTransactions((txRes.data || []) as OrderTransaction[])
       setMethods((methodsRes.data || []) as PaymentMethodListItem[])
       setSubscriptions((subscriptionsRes.data || []) as unknown as SubscriptionWithTeacher[])
     } catch (e) {
@@ -94,6 +110,12 @@ export default function ParentPaymentsPage() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  const pendingTx = useMemo(() => transactions.filter((t) => t.status === "pending"), [transactions])
+  const historyTx = useMemo(
+    () => transactions.filter((t) => t.status !== "pending").slice(0, HISTORY_LIMIT),
+    [transactions]
+  )
 
   const hasExistingDefault = useMemo(() => methods.some((m) => m.is_default), [methods])
 
@@ -198,6 +220,9 @@ export default function ParentPaymentsPage() {
         </Button>
       </motion.div>
 
+      {/* ── Pending payments ─────────────────────────────────── */}
+      {!loading && !error && <PendingPaymentsPanel transactions={pendingTx} />}
+
       {/* ── Saved payment methods ────────────────────────────── */}
       <section className="space-y-3">
         <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Saved Methods</h3>
@@ -273,7 +298,7 @@ export default function ParentPaymentsPage() {
               </thead>
               <tbody>
                 {subscriptions.map((sub) => {
-                  const tone = SUBSCRIPTION_STATUS_TONE[sub.status ?? ""] ?? "neutral"
+                  const statusMeta = subscriptionStatusMeta(sub.status)
                   const amount =
                     sub.currency === "USD" && sub.amount_usd != null
                       ? formatCurrency(sub.amount_usd, "USD")
@@ -291,10 +316,16 @@ export default function ParentPaymentsPage() {
                       <td className="px-4 py-3 capitalize text-text-muted">{sub.tier}</td>
                       <td className="px-4 py-3 font-mono tabular-nums text-text-primary">{amount}</td>
                       <td className="px-4 py-3">
-                        <StatusPill label={sub.status ?? "unknown"} tone={tone} />
+                        <StatusPill label={statusMeta.label} tone={statusMeta.tone} />
                       </td>
                       <td className="px-4 py-3 font-mono tabular-nums text-text-muted">
-                        {sub.next_billing_date ? formatDate(sub.next_billing_date) : "—"}
+                        {sub.status === "active" && sub.current_period_end
+                          ? `Paid through ${formatDate(sub.current_period_end)}`
+                          : sub.status === "pending_payment"
+                            ? "—"
+                            : sub.next_billing_date
+                              ? formatDate(sub.next_billing_date)
+                              : "—"}
                       </td>
                     </tr>
                   )
@@ -304,6 +335,50 @@ export default function ParentPaymentsPage() {
           </JarvisCard>
         )}
       </section>
+
+      {/* ── Payment history ──────────────────────────────────── */}
+      {!loading && !error && historyTx.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="font-mono text-xs uppercase tracking-[0.12em] text-text-muted">Payment History</h3>
+          <JarvisCard glow="none" className="divide-y divide-border p-0">
+            {historyTx.map((tx) => {
+              const meta = transactionStatusMeta(tx)
+              return (
+                <div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-text-primary">{tx.description ?? "Payment"}</p>
+                    <p className="mt-0.5 font-mono text-xs tabular-nums text-text-muted">
+                      {tx.reference_code ?? "—"}
+                      {tx.created_at ? ` · ${formatDate(tx.created_at)}` : ""}
+                    </p>
+                    {tx.status === "failed" && tx.rejection_reason && (
+                      <p className="mt-0.5 text-xs text-accent-danger">{tx.rejection_reason}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-sm tabular-nums text-text-primary">
+                      {formatCurrency(tx.gross_amount, tx.currency === "USD" ? "USD" : "PKR")}
+                    </span>
+                    <StatusPill label={meta.label} tone={meta.tone} />
+                    <Link href={`/checkout/${tx.id}`} className="text-xs text-accent-secondary hover:underline">
+                      View
+                    </Link>
+                    {tx.status !== "failed" && (
+                      <Link
+                        href={`/receipts/${tx.id}`}
+                        target="_blank"
+                        className="text-xs text-accent-secondary hover:underline"
+                      >
+                        Receipt
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </JarvisCard>
+        </section>
+      )}
 
       <PaymentMethodModal
         open={modalOpen}

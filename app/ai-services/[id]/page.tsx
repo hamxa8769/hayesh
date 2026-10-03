@@ -1,8 +1,9 @@
 "use client"
 
+import { BackButton } from "@/components/navigation/BackButton"
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ArrowLeft, Bot, RotateCcw, Star, Zap } from "lucide-react"
+import { Bot, Loader2, RotateCcw, ShieldCheck, Star, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Reveal } from "@/components/motion/Reveal"
@@ -11,19 +12,25 @@ import { formatPKR } from "@/lib/utils/format"
 import type { AIService, AIServiceInputField } from "@/types/database"
 
 type FormValues = Record<string, string>
+type PublicAIService = Omit<AIService, "system_prompt" | "ai_model" | "created_at" | "updated_at">
+
+const PUBLIC_COLUMNS =
+  "id,title,description,category,thumbnail_url,status,price_pkr,price_usd,output_format,delivery_time_hrs,input_schema,revisions_allowed,total_orders,average_rating,total_reviews"
 
 export default function AIServiceDetailPage() {
   const { id } = useParams()
   const router = useRouter()
-  const [service, setService] = useState<AIService | null>(null)
+  const [service, setService] = useState<PublicAIService | null>(null)
   const [loading, setLoading] = useState(true)
   const [formValues, setFormValues] = useState<FormValues>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [orderError, setOrderError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
       const supabase = createClient()
-      const { data } = await supabase.from("ai_services").select("*").eq("id", id).single()
-      setService(data as AIService | null)
+      const { data } = await supabase.from("ai_services").select(PUBLIC_COLUMNS).eq("id", id).single()
+      setService(data as PublicAIService | null)
       setLoading(false)
     }
     load()
@@ -31,6 +38,39 @@ export default function AIServiceDetailPage() {
 
   const handleFieldChange = (fieldName: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [fieldName]: value }))
+  }
+
+  const handleOrder = async () => {
+    if (!service || submitting) return
+    const fields: AIServiceInputField[] = service.input_schema || []
+    const missing = fields.filter((f) => f.required && !(formValues[f.field_name] || "").trim()).map((f) => f.label)
+    if (missing.length > 0) {
+      setOrderError(`Please fill in: ${missing.join(", ")}`)
+      return
+    }
+    setSubmitting(true)
+    setOrderError(null)
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "ai_service", service_id: service.id, inputs: formValues }),
+      })
+      if (res.status === 401) {
+        router.push(`/auth/login?redirect=/ai-services/${id}`)
+        return
+      }
+      const json = (await res.json().catch(() => null)) as { transaction_id?: string; error?: string } | null
+      if (!res.ok || !json?.transaction_id) {
+        setOrderError(json?.error || "We couldn't start your order. Please try again.")
+        setSubmitting(false)
+        return
+      }
+      router.push(`/checkout/${json.transaction_id}`)
+    } catch {
+      setOrderError("Network error. Please try again.")
+      setSubmitting(false)
+    }
   }
 
   if (loading) {
@@ -54,12 +94,7 @@ export default function AIServiceDetailPage() {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-3xl px-6 py-16 sm:px-10">
-        <button
-          onClick={() => router.back()}
-          className="mb-8 inline-flex items-center gap-2 font-mono text-xs uppercase tracking-[0.1em] text-text-muted transition-colors hover:text-text-primary"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back
-        </button>
+        <BackButton fallbackHref="/ai-services" label="Back" className="mb-8" />
 
         <Reveal>
           <div className="relative overflow-hidden rounded-lg border border-border bg-surface p-8">
@@ -78,23 +113,21 @@ export default function AIServiceDetailPage() {
             <p className="mt-5 leading-relaxed text-text-muted">{service.description}</p>
 
             <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-xs tabular-nums text-text-muted">
-              {service.delivery_time_hrs != null && (
-                <span className="inline-flex items-center gap-1.5 uppercase tracking-[0.08em] text-accent-secondary">
-                  <Zap className="h-3.5 w-3.5" />
-                  {service.delivery_time_hrs <= 1 ? "Instant delivery" : `${service.delivery_time_hrs}h delivery`}
-                </span>
-              )}
-              {service.average_rating != null && (
+              <span className="inline-flex items-center gap-1.5 uppercase tracking-[0.08em] text-accent-secondary">
+                <Zap className="h-3.5 w-3.5" />
+                {service.delivery_time_hrs != null && service.delivery_time_hrs > 1 ? `${service.delivery_time_hrs}h delivery` : "Instant delivery"}
+              </span>
+              {service.average_rating != null && (service.total_reviews ?? 0) > 0 && (
                 <span className="inline-flex items-center gap-1.5">
                   <Star className="h-3.5 w-3.5 fill-accent-secondary text-accent-secondary" />
                   {service.average_rating.toFixed(1)}
                   {service.total_reviews != null && <span className="text-text-disabled">({service.total_reviews} reviews)</span>}
                 </span>
               )}
-              {service.revisions_allowed != null && (
+              {service.revisions_allowed != null && service.revisions_allowed > 0 && (
                 <span className="inline-flex items-center gap-1.5">
                   <RotateCcw className="h-3.5 w-3.5" />
-                  {service.revisions_allowed} revisions
+                  {service.revisions_allowed === 1 ? "1 revision included" : `${service.revisions_allowed} revisions included`}
                 </span>
               )}
             </div>
@@ -112,13 +145,14 @@ export default function AIServiceDetailPage() {
             <div className="mt-4 space-y-5 rounded-lg border border-border bg-surface p-6">
               {inputFields.map((field) => (
                 <div key={field.field_name} className="space-y-1.5">
-                  <label className="text-sm font-medium text-text-muted">
+                  <label htmlFor={`ai-field-${field.field_name}`} className="text-sm font-medium text-text-muted">
                     {field.label}
                     {field.required && <span className="ml-1 text-accent-secondary">*</span>}
                   </label>
 
                   {field.type === "textarea" && (
                     <textarea
+                      id={`ai-field-${field.field_name}`}
                       value={formValues[field.field_name] || ""}
                       onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
                       rows={4}
@@ -128,6 +162,7 @@ export default function AIServiceDetailPage() {
 
                   {field.type === "select" && (
                     <select
+                      id={`ai-field-${field.field_name}`}
                       value={formValues[field.field_name] || ""}
                       onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
                       className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-text-primary focus:border-accent-primary/60 focus:outline-none"
@@ -141,14 +176,28 @@ export default function AIServiceDetailPage() {
 
                   {field.type === "file" && (
                     <input
+                      id={`ai-field-${field.field_name}`}
                       type="file"
-                      onChange={(e) => handleFieldChange(field.field_name, e.target.files?.[0]?.name || "")}
+                      accept=".txt,.md,.csv,text/plain,text/markdown,text/csv"
+                      onChange={async (e) => {
+                        // The file's TEXT is what the AI works on — sending only
+                        // the filename would silently produce a useless order.
+                        const file = e.target.files?.[0]
+                        if (!file) return handleFieldChange(field.field_name, "")
+                        if (file.size > 100_000) {
+                          e.target.value = ""
+                          return handleFieldChange(field.field_name, "")
+                        }
+                        const text = (await file.text()).slice(0, 20000)
+                        handleFieldChange(field.field_name, text)
+                      }}
                       className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-text-muted file:mr-3 file:rounded file:border-0 file:bg-accent-primary/10 file:px-3 file:py-1.5 file:font-mono file:text-xs file:uppercase file:tracking-[0.06em] file:text-accent-primary focus:border-accent-primary/60 focus:outline-none"
                     />
                   )}
 
                   {field.type === "text" && (
                     <input
+                      id={`ai-field-${field.field_name}`}
                       type="text"
                       value={formValues[field.field_name] || ""}
                       onChange={(e) => handleFieldChange(field.field_name, e.target.value)}
@@ -162,7 +211,19 @@ export default function AIServiceDetailPage() {
         )}
 
         <Reveal delay={0.15} className="mt-8">
-          <Button variant="aurora" size="lg" className="w-full">Order Now</Button>
+          {orderError && (
+            <p role="alert" className="mb-3 rounded-lg border border-accent-danger/30 bg-accent-danger/10 px-4 py-3 text-sm text-accent-danger">
+              {orderError}
+            </p>
+          )}
+          <Button variant="aurora" size="lg" className="w-full" onClick={handleOrder} disabled={submitting}>
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            {submitting ? "Starting order..." : "Order Now"}
+          </Button>
+          <p className="mt-3 flex items-start justify-center gap-2 text-center text-xs text-text-muted">
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-success" />
+            Secure payment — generated right after your payment is confirmed.
+          </p>
         </Reveal>
       </div>
     </div>

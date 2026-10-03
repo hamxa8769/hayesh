@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { PanelGroup } from "@/components/dashboard/PanelGroup"
 import { Reveal } from "@/components/motion/Reveal"
 import { formatDate } from "@/lib/utils/format"
-import type { Seller, ApprovalStatus } from "@/types/database"
+import type { Seller, Gig, ApprovalStatus } from "@/types/database"
 
 const STATUS_BADGE: Record<ApprovalStatus, "warning" | "success" | "destructive"> = {
   pending: "warning",
@@ -18,14 +18,35 @@ const STATUS_BADGE: Record<ApprovalStatus, "warning" | "success" | "destructive"
 
 export default function AdminSellersPage() {
   const [sellers, setSellers] = useState<Seller[]>([])
+  const [gigs, setGigs] = useState<Gig[]>([])
+  const [gigError, setGigError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = async () => {
     const { createClient } = await import("@/lib/supabase/client")
     const supabase = createClient()
-    const { data } = await supabase.from("sellers").select("*").order("created_at", { ascending: false })
-    setSellers((data || []) as Seller[])
+    const [sellerRes, gigRes] = await Promise.all([
+      supabase.from("sellers").select("*").order("created_at", { ascending: false }),
+      supabase.from("gigs").select("*").order("created_at", { ascending: false }),
+    ])
+    setSellers((sellerRes.data || []) as Seller[])
+    setGigs((gigRes.data || []) as Gig[])
     setLoading(false)
+  }
+
+  const decideGig = async (gigId: string, status: "approved" | "rejected") => {
+    setGigError(null)
+    const res = await fetch("/api/admin/gigs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gig_id: gigId, status }),
+    })
+    if (!res.ok) {
+      const json = (await res.json().catch(() => null)) as { error?: string } | null
+      setGigError(json?.error ?? "Could not update the gig")
+      return
+    }
+    load()
   }
 
   useEffect(() => { load() }, [])
@@ -80,6 +101,37 @@ export default function AdminSellersPage() {
           </div>
         </PanelGroup>
       )}
+
+      <section aria-label="Gig approvals" className="space-y-3">
+        <h2 className="font-display text-xl font-semibold text-text-primary">Gig approvals</h2>
+        {gigError && <p className="text-sm text-accent-danger">{gigError}</p>}
+        {!loading && gigs.length === 0 ? (
+          <p className="text-sm text-text-muted">No gigs yet</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+            <div className="min-w-[640px]">
+              {gigs.map((g) => (
+                <div
+                  key={g.id}
+                  data-testid="admin-gig-row"
+                  className="grid grid-cols-[1fr_140px_200px] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0"
+                >
+                  <p className="truncate text-sm font-medium text-text-primary">{g.title}</p>
+                  <Badge variant={g.status ? STATUS_BADGE[g.status] : "secondary"}>{g.status || "unknown"}</Badge>
+                  <div className="flex justify-end gap-2">
+                    {g.status === "pending" && (
+                      <>
+                        <Button variant="aurora" size="sm" onClick={() => decideGig(g.id, "approved")}>Approve gig</Button>
+                        <Button variant="outline" size="sm" onClick={() => decideGig(g.id, "rejected")}>Reject gig</Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   )
 }

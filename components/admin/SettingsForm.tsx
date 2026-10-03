@@ -35,6 +35,18 @@ const settingsFormSchema = z.object({
   translation_feature_enabled: z.boolean(),
   maintenance_mode: z.boolean(),
   ui_theme_accent: z.enum(["aurora-jade-gold", "ocean-cyan", "ember-rose", "violet-nova"]),
+  gig_auto_complete_days: numberField.int("Whole days only").min(1, "At least 1 day").max(30, "Cannot exceed 30 days"),
+  gig_reviews_enabled: z.boolean(),
+  gig_reviews_moderation: z.boolean(),
+  featured_7d_price_pkr: numberField.min(0, "Cannot be negative"),
+  featured_30d_price_pkr: numberField.min(0, "Cannot be negative"),
+  payment_bank_name: z.string().trim().max(120),
+  payment_account_title: z.string().trim().max(120),
+  payment_account_number: z.string().trim().max(60),
+  payment_iban: z.string().trim().max(60),
+  payment_jazzcash_number: z.string().trim().max(40),
+  payment_easypaisa_number: z.string().trim().max(40),
+  payment_instructions: z.string().trim().max(1000),
 })
 
 type SettingsFormValues = z.infer<typeof settingsFormSchema>
@@ -52,6 +64,18 @@ const DEFAULTS: SettingsFormValues = {
   translation_feature_enabled: true,
   maintenance_mode: false,
   ui_theme_accent: "aurora-jade-gold",
+  gig_auto_complete_days: 3,
+  gig_reviews_enabled: true,
+  gig_reviews_moderation: false,
+  featured_7d_price_pkr: 1500,
+  featured_30d_price_pkr: 5000,
+  payment_bank_name: "",
+  payment_account_title: "",
+  payment_account_number: "",
+  payment_iban: "",
+  payment_jazzcash_number: "",
+  payment_easypaisa_number: "",
+  payment_instructions: "",
 }
 
 const THEME_OPTIONS: { value: SettingsFormValues["ui_theme_accent"]; label: string }[] = [
@@ -81,6 +105,12 @@ function toThemeAccent(value: PlatformSetting["value"]): SettingsFormValues["ui_
   return match ? match.value : DEFAULTS.ui_theme_accent
 }
 
+function toText(value: PlatformSetting["value"]): string {
+  if (typeof value === "string") return value
+  if (typeof value === "number") return String(value)
+  return ""
+}
+
 function valuesFromRows(rows: PlatformSetting[]): SettingsFormValues {
   const byKey = new Map(rows.map((r) => [r.key, r.value]))
   const get = (key: string): PlatformSetting["value"] => byKey.get(key) ?? null
@@ -100,6 +130,18 @@ function valuesFromRows(rows: PlatformSetting[]): SettingsFormValues {
     translation_feature_enabled: toBoolean(get("translation_feature_enabled"), DEFAULTS.translation_feature_enabled),
     maintenance_mode: toBoolean(get("maintenance_mode"), DEFAULTS.maintenance_mode),
     ui_theme_accent: toThemeAccent(get("ui_theme_accent")),
+    gig_auto_complete_days: toNumber(get("gig_auto_complete_days"), DEFAULTS.gig_auto_complete_days),
+    gig_reviews_enabled: toBoolean(get("gig_reviews_enabled"), DEFAULTS.gig_reviews_enabled),
+    gig_reviews_moderation: toBoolean(get("gig_reviews_moderation"), DEFAULTS.gig_reviews_moderation),
+    featured_7d_price_pkr: toNumber(get("featured_7d_price_pkr"), DEFAULTS.featured_7d_price_pkr),
+    featured_30d_price_pkr: toNumber(get("featured_30d_price_pkr"), DEFAULTS.featured_30d_price_pkr),
+    payment_bank_name: toText(get("payment_bank_name")),
+    payment_account_title: toText(get("payment_account_title")),
+    payment_account_number: toText(get("payment_account_number")),
+    payment_iban: toText(get("payment_iban")),
+    payment_jazzcash_number: toText(get("payment_jazzcash_number")),
+    payment_easypaisa_number: toText(get("payment_easypaisa_number")),
+    payment_instructions: toText(get("payment_instructions")),
   }
 }
 
@@ -110,6 +152,26 @@ function Section({ title, description, children }: { title: string; description:
       <p className="mt-1 max-w-prose text-sm text-text-muted">{description}</p>
       <div className="mt-5">{children}</div>
     </section>
+  )
+}
+
+function TextField({
+  id,
+  label,
+  error,
+  registration,
+}: {
+  id: string
+  label: string
+  error?: string
+  registration: UseFormRegisterReturn
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} type="text" autoComplete="off" {...registration} />
+      {error && <p className="text-xs text-accent-danger">{error}</p>}
+    </div>
   )
 }
 
@@ -240,6 +302,76 @@ export function SettingsForm() {
       </Section>
 
       <Section
+        title="Gig orders"
+        description="How escrowed gig payments are released once a seller delivers."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <NumberField
+            id="gig_auto_complete_days"
+            label="Auto-complete delivered gig orders after N days"
+            hint="If the buyer neither accepts nor disputes a delivery, the order completes and the seller is paid (1–30 days)."
+            error={errors.gig_auto_complete_days?.message}
+            registration={register("gig_auto_complete_days", { valueAsNumber: true })}
+          />
+        </div>
+      </Section>
+
+      <Section
+        title="Gig reviews"
+        description="Buyers can review a gig once an order completes. Manage individual reviews under Reviews."
+      >
+        <div className="space-y-3">
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-surface-elevated p-3">
+            <input
+              type="checkbox"
+              {...register("gig_reviews_enabled")}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--color-accent-primary)]"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm text-text-primary">Show gig reviews publicly</span>
+              <span className="block text-xs text-text-muted">When off, reviews are hidden from gig pages.</span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-surface-elevated p-3">
+            <input
+              type="checkbox"
+              {...register("gig_reviews_moderation")}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[color:var(--color-accent-primary)]"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm text-text-primary">Require approval before reviews are published</span>
+              <span className="block text-xs text-text-muted">New reviews wait in the Reviews queue until an admin publishes them.</span>
+            </span>
+          </label>
+        </div>
+      </Section>
+
+      <Section
+        title="Payment accounts (shown at checkout)"
+        description="Manual payment details customers see when paying by bank transfer, IBFT, JazzCash or Easypaisa. Leave a field empty to hide it."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField id="payment_bank_name" label="Bank name" error={errors.payment_bank_name?.message} registration={register("payment_bank_name")} />
+          <TextField id="payment_account_title" label="Account title" error={errors.payment_account_title?.message} registration={register("payment_account_title")} />
+          <TextField id="payment_account_number" label="Account number" error={errors.payment_account_number?.message} registration={register("payment_account_number")} />
+          <TextField id="payment_iban" label="IBAN" error={errors.payment_iban?.message} registration={register("payment_iban")} />
+          <TextField id="payment_jazzcash_number" label="JazzCash number" error={errors.payment_jazzcash_number?.message} registration={register("payment_jazzcash_number")} />
+          <TextField id="payment_easypaisa_number" label="Easypaisa number" error={errors.payment_easypaisa_number?.message} registration={register("payment_easypaisa_number")} />
+        </div>
+        <div className="mt-4 space-y-1.5">
+          <Label htmlFor="payment_instructions">Payment instructions</Label>
+          <textarea
+            id="payment_instructions"
+            rows={3}
+            {...register("payment_instructions")}
+            className="flex w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+          />
+          <p className="text-xs text-text-muted">Extra notes shown beside the account details, e.g. include your reference code in the transfer remarks.</p>
+          {errors.payment_instructions && <p className="text-xs text-accent-danger">{errors.payment_instructions.message}</p>}
+        </div>
+      </Section>
+
+      <Section
         title="Registration fees"
         description="One-time fee a teacher or seller pays to join. Charged in PKR for Pakistani accounts and USD for everyone else."
       >
@@ -273,6 +405,28 @@ export function SettingsForm() {
             step="0.01"
             error={errors.seller_registration_fee_usd?.message}
             registration={register("seller_registration_fee_usd", { valueAsNumber: true })}
+          />
+        </div>
+      </Section>
+
+      <Section
+        title="Featured listings"
+        description="Price a teacher or seller pays (in PKR) to be ranked first in discovery and marketplace listings."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <NumberField
+            id="featured_7d_price_pkr"
+            label="7-day featured (PKR)"
+            hint="Charged for one week of featured placement."
+            error={errors.featured_7d_price_pkr?.message}
+            registration={register("featured_7d_price_pkr", { valueAsNumber: true })}
+          />
+          <NumberField
+            id="featured_30d_price_pkr"
+            label="30-day featured (PKR)"
+            hint="Charged for 30 days of featured placement."
+            error={errors.featured_30d_price_pkr?.message}
+            registration={register("featured_30d_price_pkr", { valueAsNumber: true })}
           />
         </div>
       </Section>

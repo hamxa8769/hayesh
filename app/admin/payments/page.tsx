@@ -1,12 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { AlertTriangle, CheckCircle2, DollarSign, Loader2, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Download, DollarSign, Loader2, Undo2, XCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { StatTile } from "@/components/dashboard/StatTile"
 import { PanelGroup } from "@/components/dashboard/PanelGroup"
 import { Reveal } from "@/components/motion/Reveal"
+import { PaymentVerificationQueue } from "@/components/admin/PaymentVerificationQueue"
+import { RefundModal } from "@/components/admin/RefundModal"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatCurrency, formatDate } from "@/lib/utils/format"
 import { StatusPill, statusToneFor, PAYOUT_STATUS_LABEL } from "@/components/teacher/StatusPill"
@@ -46,6 +48,9 @@ function maskDisplayAccountNumber(stored: string | null): string {
   return `••••${trimmed.slice(-4)}`
 }
 
+// Money is collected once a payment is completed OR held in escrow (processing).
+const isCollected = (t: Transaction): boolean => t.status === "completed" || t.status === "processing"
+
 export default function AdminPaymentsPage() {
   const { user } = useSupabase()
 
@@ -64,18 +69,21 @@ export default function AdminPaymentsPage() {
   const [rejectNotes, setRejectNotes] = useState("")
   const [queueError, setQueueError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const load = async () => {
-      const { createClient } = await import("@/lib/supabase/client")
-      const supabase = createClient()
-      const { data } = await supabase.from("transactions").select("*").order("created_at", { ascending: false })
-      const all = (data || []) as Transaction[]
-      setTxs(all)
-      setTotal(all.filter((t) => t.status === "completed").reduce((s, t) => s + (t.gross_amount || 0), 0))
-      setLoading(false)
-    }
-    load()
+  const [refunding, setRefunding] = useState<Transaction | null>(null)
+
+  const loadTransactions = useCallback(async () => {
+    const { createClient } = await import("@/lib/supabase/client")
+    const supabase = createClient()
+    const { data } = await supabase.from("transactions").select("*").order("created_at", { ascending: false })
+    const all = (data || []) as Transaction[]
+    setTxs(all)
+    setTotal(all.filter(isCollected).reduce((s, t) => s + (t.gross_amount || 0), 0))
+    setLoading(false)
   }, [])
+
+  useEffect(() => {
+    loadTransactions()
+  }, [loadTransactions])
 
   const loadPayouts = useCallback(async () => {
     setPayoutsLoading(true)
@@ -107,7 +115,7 @@ export default function AdminPaymentsPage() {
     loadPayouts()
   }, [loadPayouts])
 
-  const platformFees = txs.filter((t) => t.status === "completed").reduce((s, t) => s + (t.platform_fee || 0), 0)
+  const platformFees = txs.filter(isCollected).reduce((s, t) => s + (t.platform_fee || 0), 0)
   const netPayouts = txs.filter((t) => t.status === "completed").reduce((s, t) => s + (t.net_amount || 0), 0)
 
   const visiblePayouts = useMemo(
@@ -189,9 +197,11 @@ export default function AdminPaymentsPage() {
         <h1 className="mt-1 font-display text-2xl font-semibold text-text-primary sm:text-3xl">Payments &amp; Revenue</h1>
       </Reveal>
 
+      <PaymentVerificationQueue />
+
       <PanelGroup title="Revenue Breakdown" className="grid gap-4 sm:grid-cols-3">
-        <StatTile label="Total Revenue" value={formatCurrency(total, "PKR")} accent />
-        <StatTile label="Platform Fees" value={formatCurrency(platformFees, "PKR")} />
+        <StatTile label="Gross Volume" value={formatCurrency(total, "PKR")} />
+        <StatTile label="Platform Revenue" value={formatCurrency(platformFees, "PKR")} accent />
         <StatTile label="Net Payouts" value={formatCurrency(netPayouts, "PKR")} />
       </PanelGroup>
 
@@ -220,6 +230,12 @@ export default function AdminPaymentsPage() {
                 All
               </button>
             </div>
+            <a
+              href={`/api/admin/payouts/export?status=${filter === "pending" ? "pending" : "all"}`}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-mono uppercase tracking-[0.08em] text-text-muted transition-colors hover:border-line-strong hover:text-text-primary"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" /> Export CSV
+            </a>
           </div>
 
           {queueError && <p className="text-sm text-accent-danger">{queueError}</p>}
@@ -380,29 +396,39 @@ export default function AdminPaymentsPage() {
         </div>
       ) : (
         <PanelGroup title="Transactions">
-          <div className="hidden gap-4 border-b border-border px-4 pb-3 font-mono text-xs uppercase tracking-[0.12em] text-text-muted sm:grid sm:grid-cols-[1fr_140px_120px_140px]">
+          <div className="hidden gap-4 border-b border-border px-4 pb-3 font-mono text-xs uppercase tracking-[0.12em] text-text-muted sm:grid sm:grid-cols-[1fr_140px_120px_140px_100px]">
             <span>Type</span>
             <span>Date</span>
             <span>Status</span>
             <span className="text-right">Amount</span>
+            <span className="text-right">Action</span>
           </div>
           <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-            <div className="min-w-[640px]">
+            <div className="min-w-[740px]">
               {txs.map((tx) => (
                 <div
                   key={tx.id}
-                  className="grid grid-cols-[1fr_140px_120px_140px] items-center gap-4 border-b border-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-elevated"
+                  className="grid grid-cols-[1fr_140px_120px_140px_100px] items-center gap-4 border-b border-border px-4 py-3 transition-colors last:border-b-0 hover:bg-surface-elevated"
                 >
                   <p className="truncate text-sm capitalize text-text-primary">{tx.type.replace("_", " ")}</p>
                   <p className="font-mono text-xs tabular-nums text-text-muted">{tx.created_at ? formatDate(tx.created_at) : "—"}</p>
                   <Badge variant={tx.status ? STATUS_BADGE[tx.status] : "secondary"}>{tx.status || "unknown"}</Badge>
-                  <span className="text-right font-mono text-sm font-semibold tabular-nums text-text-primary">{formatCurrency(tx.gross_amount || 0, "PKR")}</span>
+                  <span className="text-right font-mono text-sm font-semibold tabular-nums text-text-primary">{formatCurrency(tx.gross_amount || 0, tx.currency === "USD" ? "USD" : "PKR")}</span>
+                  <span className="text-right">
+                    {(tx.status === "completed" || tx.status === "processing") && (
+                      <Button variant="outline" size="sm" onClick={() => setRefunding(tx)}>
+                        <Undo2 className="h-3.5 w-3.5" /> Refund
+                      </Button>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         </PanelGroup>
       )}
+
+      <RefundModal transaction={refunding} onClose={() => setRefunding(null)} onRefunded={loadTransactions} />
     </div>
   )
 }
