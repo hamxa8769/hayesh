@@ -355,7 +355,7 @@ const myChildrenProgress: JarvisTool = {
 
 const myUpcomingLessons: JarvisTool = {
   name: "my_upcoming_lessons",
-  description: "Scheduled lessons and meetings in the next 14 days.",
+  description: "Scheduled lessons, timetable classes and meetings in the next 14 days.",
   input_schema: EMPTY_SCHEMA,
   roles: ["parent", "teacher"],
   async run(ctx, input) {
@@ -377,13 +377,20 @@ const myUpcomingLessons: JarvisTool = {
       if (!tid) return { lessons: [], meetings: [], note: "No teacher profile found." }
       sessionQ = sessionQ.eq("teacher_id", tid)
     }
+    const { data: inviteRows } = await ctx.supabase.from("meeting_invitations").select("meeting_id").eq("invitee_id", ctx.userId).limit(200)
+    const invitedIds = ((inviteRows ?? []) as Array<{ meeting_id: string }>).map((r) => r.meeting_id)
+    const meetingFilter = [
+      `organizer_id.eq.${ctx.userId}`,
+      `participant_id.eq.${ctx.userId}`,
+      ...(invitedIds.length > 0 ? [`id.in.(${invitedIds.join(",")})`] : []),
+    ].join(",")
     const meetingQ = ctx.supabase
       .from("meetings")
-      .select("title, scheduled_at, duration_minutes, context")
-      .eq("status", "scheduled")
+      .select("title, scheduled_at, duration_minutes, context, timetable_slot_id")
+      .in("status", ["scheduled", "live"])
       .gte("scheduled_at", from)
       .lte("scheduled_at", to)
-      .or(`organizer_id.eq.${ctx.userId},participant_id.eq.${ctx.userId}`)
+      .or(meetingFilter)
       .order("scheduled_at", { ascending: true })
       .limit(MAX_ROWS)
     const [sessions, meetings] = await Promise.all([sessionQ, meetingQ])

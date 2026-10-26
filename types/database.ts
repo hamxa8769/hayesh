@@ -636,8 +636,13 @@ export interface Meeting {
   scheduled_at: string;
   duration_minutes: number | null;
   room_url: string | null;
-  status: 'scheduled' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'live' | 'completed' | 'cancelled' | 'no_show_teacher' | 'no_show_student';
   is_group: boolean;
+  /** Set when the class was generated from a teacher's timetable (migration 031). */
+  timetable_slot_id?: string | null;
+  reminder_sent_at?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
   /** Opt-in waiting room (migration 018). `not null default false`, so every
    *  row — including pre-migration rows — always has a value. */
   waiting_room: boolean;

@@ -406,11 +406,13 @@ begin
       where tm.slot_id = m.timetable_slot_id and sub.parent_id = i.invitee_id and sub.status = 'active'
     );
 
-  -- Future classes of a paused slot (slots are deactivated, never hard-
+  -- Future occurrences of a paused slot (slots are deactivated, never hard-
   -- deleted, so history and attendance survive), or with nobody left, are
-  -- cancelled. Manually created meetings are never touched.
+  -- removed so that resuming the slot regenerates them. A class the teacher
+  -- cancelled individually is a 'cancelled' row and is left alone.
+  -- Manually created meetings are never touched.
   with dead as (
-    update public.meetings m set status = 'cancelled', updated_at = now()
+    delete from public.meetings m
     where m.timetable_slot_id is not null
       and m.status = 'scheduled'
       and m.scheduled_at > now()

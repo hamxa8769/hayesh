@@ -31,14 +31,20 @@ export type MeetingCardProps =
 
 const MEETING_STATUS_TONE: Record<Meeting["status"], PillTone> = {
   scheduled: "neutral",
+  live: "success",
   completed: "neutral",
   cancelled: "danger",
+  no_show_teacher: "warning",
+  no_show_student: "warning",
 }
 
 const MEETING_STATUS_LABEL: Record<Meeting["status"], string> = {
   scheduled: "Scheduled",
+  live: "Live now",
   completed: "Completed",
   cancelled: "Cancelled",
+  no_show_teacher: "Teacher missed",
+  no_show_student: "Student missed",
 }
 
 const INVITEE_DOT_TONE: Record<HostingInvitation["status"], string> = {
