@@ -426,6 +426,7 @@ Week 10 → Polish, performance, deploy to Vercel
 
 - Operator runbook (migrations, env vars, go-live checklist): `docs/PRODUCTION.md`
 - Remaining work, in priority order: `docs/ROADMAP.md` — start with Phase 0 (launch blockers)
+- v2 architecture & upgrade plan (classroom, ledger, AI, edge cases, pre-launch gate): `docs/LAUNCH-BLUEPRINT.md`
 
 ---
 
