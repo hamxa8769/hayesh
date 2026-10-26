@@ -161,8 +161,8 @@ test("demo booking: parent books, teacher confirms, parent sees the new status",
 
   await parent.goto("/parent/requests")
   const panel = parent.getByRole("region", { name: "Demo lessons" })
-  await expect(panel.getByText(child)).toBeVisible()
-  await expect(panel.getByText("Confirmed")).toBeVisible()
+  await expect(panel.getByText(child).first()).toBeVisible()
+  await expect(panel.getByText("Confirmed").first()).toBeVisible()
   await parent.context().close()
 })
 
