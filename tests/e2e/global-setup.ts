@@ -25,8 +25,12 @@ function psql(sql: string): void {
 
 export default async function globalSetup(): Promise<void> {
   // Wipe app data (CASCADE follows every FK from profiles) and test users.
+  // The audit log is append-only (it blocks TRUNCATE, even for postgres);
+  // replica mode skips that trigger for this LOCAL test reset only.
   psql(`
+    set session_replication_role = replica;
     truncate public.profiles, public.ai_services cascade;
+    set session_replication_role = origin;
     delete from auth.users where email like '%@e2e.hayesh.test';
     -- platform_settings.updated_by references profiles, so the CASCADE above
     -- empties it too: restore every setting the app reads.
