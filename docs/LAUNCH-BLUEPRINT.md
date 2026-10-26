@@ -10,6 +10,20 @@ file it touches. Status legend: ✅ already done · ⚠️ partial · ❌ missin
 
 ---
 
+## Owner decisions (26 Oct 2026) and how they change the plan
+
+| Decision | Consequence |
+|---|---|
+| AI Studio stays **admin-only** | No third-party AI sellers; Phase 3 AI work targets matching, recaps, disputes |
+| **Vercel Hobby + Supabase Free** until users arrive | Crons via Supabase `pg_cron` (migration 029) instead of Vercel (daily-only); weekly encrypted `pg_dump` via GitHub Actions instead of PITR; recordings go to **Cloudflare R2** (10 GB free) not Supabase Storage (1 GB). ⚠️ Vercel Hobby is non-commercial — move to Pro before real payments |
+| Classes = **whatever the teacher's timetable says** (no cap) | Sprint 2: weekly timetable rules → `class_sessions` generated per billing period; exclusion constraint prevents overlaps |
+| Recording retention **30 and 90 days** | Admin default + per-teacher override (`recording_retention_days` ∈ {30, 90}); a daily job deletes expired files from R2 |
+| **Manual payments now, automatic later** | ✅ Done in Sprint 1: provider registry (manual always on; Stripe/Simpaisa switch on by env), idempotent webhooks — see `PAYMENTS-AUTOMATION.md` |
+
+**Sprint 1 status: ✅ shipped** — distributed rate limiting (Upstash, fallback in-memory), Sentry (inert without DSN), report-only CSP, append-only admin audit log, admin TOTP two-factor (middleware + RLS), payment provider registry + webhook dedupe, performance indexes, pg_cron scheduler, encrypted weekly backups.
+
+---
+
 ## Executive summary — the 10 changes that matter most
 
 | # | Change | Why | Effort |
