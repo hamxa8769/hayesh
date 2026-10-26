@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createLiveKitToken } from '@/lib/livekit/tokens'
+import { rateLimit } from '@/lib/security/rate-limit'
 
 /**
  * POST /api/livekit/token — mints a short-lived LiveKit access token for a
@@ -61,6 +62,14 @@ export async function POST(request: Request): Promise<NextResponse<TokenSuccessR
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const limited = await rateLimit(`livekit-token:${user.id}`, 30, 60_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
   }
 
   let body: unknown

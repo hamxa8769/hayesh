@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { notifyAdmins } from "@/lib/notifications"
 import { supportTicketSchema } from "@/components/teacher/teaching-schema"
+import { rateLimit } from "@/lib/security/rate-limit"
 
 /**
  * POST /api/support/tickets — any authenticated user (teacher, parent,
@@ -42,6 +43,14 @@ export async function POST(
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const limited = await rateLimit(`support-ticket:${user.id}`, 10, 600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
   }
 
   let body: unknown

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notifyUser } from '@/lib/notifications'
 import { filterInvitable } from '@/lib/meetings/invitable'
 import type { Meeting } from '@/types/database'
+import { rateLimit } from '@/lib/security/rate-limit'
 
 /**
  * /api/meetings — list, create, and update scheduled video meetings.
@@ -196,6 +197,14 @@ export async function POST(request: Request): Promise<
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const limited = await rateLimit(`meeting-create:${user.id}`, 20, 3_600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
   }
 
   let body: unknown

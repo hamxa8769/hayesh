@@ -25,7 +25,7 @@ export async function POST(request: Request): Promise<NextResponse<{ output: str
   if (!auth.ok) return auth.response
   const { user } = auth
 
-  const limited = rateLimit(`ai-revise:${user.userId}`, 5, 60_000)
+  const limited = await rateLimit(`ai-revise:${user.userId}`, 5, 60_000)
   if (!limited.ok) return NextResponse.json({ error: "Too many attempts. Please wait a minute." }, { status: 429 })
 
   let body: unknown

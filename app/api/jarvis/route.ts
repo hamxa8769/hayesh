@@ -21,7 +21,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<{ answer: str
   if (!auth.ok) return auth.response
   const { user } = auth
 
-  const limited = rateLimit(`jarvis:${user.userId}`, 20, 60_000)
+  const limited = await rateLimit(`jarvis:${user.userId}`, 20, 60_000)
   if (!limited.ok) {
     return NextResponse.json({ error: "You're sending messages too quickly. Please wait a moment." }, { status: 429 })
   }

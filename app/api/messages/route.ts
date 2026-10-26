@@ -18,7 +18,7 @@ export async function POST(request: Request): Promise<NextResponse<{ message: Me
   if (!auth.ok) return auth.response
   const { userId, fullName, supabase } = auth.user
 
-  const limit = rateLimit(`msg:${userId}`, 30, 60_000)
+  const limit = await rateLimit(`msg:${userId}`, 30, 60_000)
   if (!limit.ok) {
     return NextResponse.json(
       { error: `You're sending messages too fast. Try again in ${limit.retryAfterSeconds}s` },

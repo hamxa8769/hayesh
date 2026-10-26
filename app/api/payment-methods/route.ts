@@ -3,6 +3,7 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { encryptField } from "@/lib/crypto/field-encryption"
 import type { PaymentMethodListItem } from "@/components/parent/payment-schema"
+import { rateLimit } from "@/lib/security/rate-limit"
 
 /**
  * /api/payment-methods — a user's saved payment instruments (public.payment_methods,
@@ -63,6 +64,14 @@ export async function POST(
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const limited = await rateLimit(`pm-add:${user.id}`, 20, 3_600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
   }
 
   let body: unknown
@@ -147,6 +156,14 @@ export async function DELETE(
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const limited = await rateLimit(`pm-del:${user.id}`, 20, 3_600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
   }
 
   const id = request.nextUrl.searchParams.get("id")
