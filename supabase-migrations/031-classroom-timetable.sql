@@ -101,23 +101,39 @@ alter table public.timetable_slot_members enable row level security;
 
 -- Reads: the teacher, parents enrolled in the slot, admins. Writes go
 -- through /api/timetable (service role) so validation lives in one place.
+-- The two policies must not query each other's table directly (Postgres
+-- rejects that as infinite recursion), so the cross-table checks are
+-- SECURITY DEFINER helpers that bypass RLS.
+create or replace function public.is_timetable_slot_teacher(p_slot uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.timetable_slots s join public.teachers t on t.id = s.teacher_id
+    where s.id = p_slot and t.user_id = auth.uid()
+  );
+$$;
+create or replace function public.is_timetable_slot_parent(p_slot uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.timetable_slot_members m
+    join public.subscriptions sub on sub.id = m.subscription_id
+    where m.slot_id = p_slot and sub.parent_id = auth.uid()
+  );
+$$;
+revoke all on function public.is_timetable_slot_teacher(uuid) from public, anon;
+revoke all on function public.is_timetable_slot_parent(uuid) from public, anon;
+grant execute on function public.is_timetable_slot_teacher(uuid) to authenticated;
+grant execute on function public.is_timetable_slot_parent(uuid) to authenticated;
+
 drop policy if exists "timetable read" on public.timetable_slots;
 create policy "timetable read" on public.timetable_slots for select to authenticated using (
   get_user_role() = 'admin'
   or exists (select 1 from public.teachers t where t.id = teacher_id and t.user_id = auth.uid())
-  or exists (
-    select 1 from public.timetable_slot_members m
-    join public.subscriptions sub on sub.id = m.subscription_id
-    where m.slot_id = timetable_slots.id and sub.parent_id = auth.uid()
-  )
+  or public.is_timetable_slot_parent(id)
 );
 drop policy if exists "timetable members read" on public.timetable_slot_members;
 create policy "timetable members read" on public.timetable_slot_members for select to authenticated using (
   get_user_role() = 'admin'
-  or exists (
-    select 1 from public.timetable_slots s join public.teachers t on t.id = s.teacher_id
-    where s.id = slot_id and t.user_id = auth.uid()
-  )
+  or public.is_timetable_slot_teacher(slot_id)
   or exists (select 1 from public.subscriptions sub where sub.id = subscription_id and sub.parent_id = auth.uid())
 );
 revoke insert, update, delete on public.timetable_slots, public.timetable_slot_members from anon, authenticated;
@@ -338,7 +354,9 @@ begin
     order by m.created_at limit 1;
 
     for v_day in
-      select d::date from generate_series(current_date, current_date + p_days, interval '1 day') d
+      -- Start from yesterday (UTC) so a slot west of UTC never loses its
+      -- local "today"; past times are skipped by the v_start guard below.
+      select d::date from generate_series(current_date - 1, current_date + p_days, interval '1 day') d
     loop
       continue when extract(dow from v_day) <> v_slot.weekday;
       continue when v_day < v_slot.starts_on;
