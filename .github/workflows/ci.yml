@@ -49,6 +49,10 @@ jobs:
       - name: Start local Supabase
         run: |
           mkdir -p /tmp/sb && cd /tmp/sb && supabase init --force >/dev/null
+          # Hosted Supabase enables TOTP MFA by default; the local default is off.
+          # The admin two-factor E2E test needs it on.
+          sed -i '/^\[auth.mfa.totp\]/,/^\[/{s/^enroll_enabled = false/enroll_enabled = true/;s/^verify_enabled = false/verify_enabled = true/}' supabase/config.toml
+          grep -A2 '^\[auth.mfa.totp\]' supabase/config.toml
           supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,mailpit
       - name: Build database from schema + migrations
         run: npm run db:local:reset
