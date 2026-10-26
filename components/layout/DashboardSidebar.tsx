@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Calendar, Users, Wallet, UserCog, Search,
   ShoppingBag, Package, MessageSquare, GraduationCap, Cpu, CreditCard,
   Globe, AlertTriangle, Settings, ChevronLeft, ChevronRight, LogOut, X,
-  Star, MessageSquareQuote, Palette, Video, MessagesSquare, Compass, ScrollText, ShieldCheck,
+  Star, MessageSquareQuote, Palette, Video, MessagesSquare, Compass, ScrollText, ShieldCheck, CalendarClock,
 } from "lucide-react"
 import { cn } from "@/lib/utils/cn"
 import { signOutAndReload } from "@/lib/auth/sign-out"
@@ -43,6 +43,7 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: MessagesSquare, label: "Messages", href: "/messages" },
     { icon: Package, label: "My Orders", href: "/orders" },
     { icon: Calendar, label: "Sessions", href: "/teacher/sessions" },
+    { icon: CalendarClock, label: "Timetable", href: "/teacher/timetable" },
     { icon: Users, label: "Students", href: "/teacher/students" },
     { icon: GraduationCap, label: "Assignments", href: "/teacher/assignments" },
     { icon: MessageSquare, label: "Announcements", href: "/teacher/announcements" },
@@ -58,6 +59,7 @@ const navItems: Record<UserRole, NavItem[]> = {
     { icon: Package, label: "My Orders", href: "/orders" },
     { icon: GraduationCap, label: "My Children", href: "/parent/students" },
     { icon: MessageSquare, label: "Requests", href: "/parent/requests" },
+    { icon: CalendarClock, label: "Timetable", href: "/parent/timetable" },
     { icon: Search, label: "Find Teachers", href: "/parent/find-teachers" },
     { icon: Users, label: "Progress", href: "/parent/progress" },
     { icon: CreditCard, label: "Payments", href: "/parent/payments" },

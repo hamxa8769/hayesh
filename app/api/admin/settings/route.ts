@@ -51,6 +51,7 @@ const SETTINGS_SPEC = {
   gig_auto_complete_days: z.number().int("Must be a whole number of days").min(1, "At least 1 day").max(30, "At most 30 days"),
   gig_reviews_enabled: z.boolean(),
   gig_reviews_moderation: z.boolean(),
+  recording_retention_days: z.union([z.literal(30), z.literal(90)]),
   featured_7d_price_pkr: z.number().min(0, "Price cannot be negative"),
   featured_30d_price_pkr: z.number().min(0, "Price cannot be negative"),
 } as const

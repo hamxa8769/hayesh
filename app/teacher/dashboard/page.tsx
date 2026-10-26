@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils/cn"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatPKR, formatDateTime, formatDate } from "@/lib/utils/format"
+import { UpcomingClasses } from "@/components/classes/UpcomingClasses"
 import { RegistrationFeeCard } from "@/components/shared/RegistrationFeeCard"
 import { FeatureListingCard } from "@/components/shared/FeatureListingCard"
 import { EscrowBalanceCard } from "@/components/teacher/EscrowBalanceCard"
@@ -149,6 +150,8 @@ export default function TeacherDashboard() {
         </h2>
         <p className="mt-1 text-text-muted">Here&apos;s your teaching overview.</p>
       </Reveal>
+
+      <UpcomingClasses compact viewAllHref="/teacher/timetable" />
 
       <RegistrationFeeCard role="teacher" />
       <FeatureListingCard role="teacher" />

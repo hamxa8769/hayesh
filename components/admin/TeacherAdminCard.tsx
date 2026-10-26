@@ -82,6 +82,8 @@ async function patchUser(payload: Record<string, unknown>): Promise<PatchResult>
   return json
 }
 
+type TeacherWithRetention = Teacher & { recording_retention_days?: number | null }
+
 type ActionKey = "approve" | "reject" | "feature" | "suspend" | "activate"
 type ConfirmState = { key: Extract<ActionKey, "reject" | "suspend">; label: string } | null
 
@@ -92,6 +94,11 @@ export function TeacherAdminCard({ teacher, profile, onTeacherUpdated, onProfile
   const [isEditing, setIsEditing] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [editSaved, setEditSaved] = useState(false)
+  const [retention, setRetention] = useState<string>(
+    String((teacher as TeacherWithRetention).recording_retention_days ?? "")
+  )
+  const [retentionBusy, setRetentionBusy] = useState(false)
+  const [retentionError, setRetentionError] = useState<string | null>(null)
 
   const isSuspended = profile?.is_active === false
   const status = teacher.status ?? "pending"
@@ -146,6 +153,27 @@ export function TeacherAdminCard({ teacher, profile, onTeacherUpdated, onProfile
       setActionError(e instanceof Error ? e.message : "Action failed")
     } finally {
       setBusyKey(null)
+    }
+  }
+
+  const changeRetention = async (next: string) => {
+    const previous = retention
+    setRetention(next)
+    setRetentionBusy(true)
+    setRetentionError(null)
+    try {
+      const res = await fetch(`/api/admin/teachers/${teacher.id}/recording-retention`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days: next === "" ? null : Number(next) }),
+      })
+      const json = (await res.json()) as { error?: string }
+      if (!res.ok) throw new Error(json.error ?? "Could not save retention")
+    } catch (e: unknown) {
+      setRetention(previous)
+      setRetentionError(e instanceof Error ? e.message : "Could not save retention")
+    } finally {
+      setRetentionBusy(false)
     }
   }
 
@@ -339,6 +367,25 @@ export function TeacherAdminCard({ teacher, profile, onTeacherUpdated, onProfile
             {isEditing ? "Close edit" : "Edit profile"}
           </Button>
         )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Label htmlFor={`retention-${teacher.id}`} className="text-xs text-text-muted">
+          Recording retention:
+        </Label>
+        <select
+          id={`retention-${teacher.id}`}
+          value={retention}
+          disabled={retentionBusy}
+          onChange={(e) => void changeRetention(e.target.value)}
+          className="h-8 rounded-lg border border-border bg-surface-elevated px-2 text-xs text-text-primary focus:border-accent-primary focus:outline-none"
+        >
+          <option value="">Platform default</option>
+          <option value="30">30 days</option>
+          <option value="90">90 days</option>
+        </select>
+        {retentionBusy && <Loader2 className="h-3.5 w-3.5 animate-spin text-text-muted" aria-hidden="true" />}
+        {retentionError && <span className="text-xs text-accent-danger">{retentionError}</span>}
       </div>
 
       {!profile && (

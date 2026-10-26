@@ -38,6 +38,7 @@ const settingsFormSchema = z.object({
   gig_auto_complete_days: numberField.int("Whole days only").min(1, "At least 1 day").max(30, "Cannot exceed 30 days"),
   gig_reviews_enabled: z.boolean(),
   gig_reviews_moderation: z.boolean(),
+  recording_retention_days: z.enum(["30", "90"]),
   featured_7d_price_pkr: numberField.min(0, "Cannot be negative"),
   featured_30d_price_pkr: numberField.min(0, "Cannot be negative"),
   payment_bank_name: z.string().trim().max(120),
@@ -67,6 +68,7 @@ const DEFAULTS: SettingsFormValues = {
   gig_auto_complete_days: 3,
   gig_reviews_enabled: true,
   gig_reviews_moderation: false,
+  recording_retention_days: "30",
   featured_7d_price_pkr: 1500,
   featured_30d_price_pkr: 5000,
   payment_bank_name: "",
@@ -133,6 +135,7 @@ function valuesFromRows(rows: PlatformSetting[]): SettingsFormValues {
     gig_auto_complete_days: toNumber(get("gig_auto_complete_days"), DEFAULTS.gig_auto_complete_days),
     gig_reviews_enabled: toBoolean(get("gig_reviews_enabled"), DEFAULTS.gig_reviews_enabled),
     gig_reviews_moderation: toBoolean(get("gig_reviews_moderation"), DEFAULTS.gig_reviews_moderation),
+    recording_retention_days: String(get("recording_retention_days")) === "90" ? "90" : "30",
     featured_7d_price_pkr: toNumber(get("featured_7d_price_pkr"), DEFAULTS.featured_7d_price_pkr),
     featured_30d_price_pkr: toNumber(get("featured_30d_price_pkr"), DEFAULTS.featured_30d_price_pkr),
     payment_bank_name: toText(get("payment_bank_name")),
@@ -242,7 +245,9 @@ export function SettingsForm() {
       const res = await fetch("/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings: values }),
+        body: JSON.stringify({
+          settings: { ...values, recording_retention_days: Number(values.recording_retention_days) },
+        }),
       })
       const json = (await res.json()) as { settings?: PlatformSetting[]; error?: string }
       if (!res.ok) throw new Error(json.error ?? "Could not save settings")
@@ -495,6 +500,26 @@ export function SettingsForm() {
               </span>
             </span>
           </label>
+        </div>
+      </Section>
+
+      <Section
+        title="Class recordings"
+        description="Recordings of timetable classes are deleted automatically after this period. A teacher can be given a different period on their admin card."
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="recording_retention_days">Class recordings — keep for</Label>
+          <select
+            id="recording_retention_days"
+            {...register("recording_retention_days")}
+            className="flex h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 text-sm text-text-primary focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 sm:max-w-md"
+          >
+            <option value="30">30 days</option>
+            <option value="90">90 days</option>
+          </select>
+          {errors.recording_retention_days?.message && (
+            <p className="text-xs text-accent-danger">{errors.recording_retention_days.message}</p>
+          )}
         </div>
       </Section>
 
