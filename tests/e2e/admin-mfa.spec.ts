@@ -70,7 +70,7 @@ test("admin enrols TOTP, then must pass the challenge on next sign-in", async ({
     // Wrong code
     await page.locator("#mfa-code").fill("000000")
     await page.getByRole("button", { name: "Verify" }).click()
-    await expect(page.getByRole("alert")).toContainText(/not correct/i)
+    await expect(page.getByRole("alert").filter({ hasText: /not correct/i })).toBeVisible()
 
     // Correct code
     await page.locator("#mfa-code").fill(await freshCode(secret, enrolCode))
