@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { PlatformSetting } from "@/types/database"
@@ -148,6 +149,10 @@ export async function PATCH(
   }
 
   const adminClient = createAdminClient()
+  const { data: previousRows } = await adminClient
+    .from("platform_settings")
+    .select("key, value")
+    .in("key", rows.map((r) => r.key))
   const { data, error } = await adminClient
     .from("platform_settings")
     .upsert(rows, { onConflict: "key" })
@@ -156,6 +161,25 @@ export async function PATCH(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
+
+  const sensitiveKey = /account_number|iban|secret|token|password|api_?key/i
+  const redact = (key: string, value: unknown): unknown => (sensitiveKey.test(key) ? "[redacted]" : value)
+  const previous = new Map((previousRows ?? []).map((r: { key: string; value: unknown }) => [r.key, r.value]))
+  const before: Record<string, unknown> = {}
+  const after: Record<string, unknown> = {}
+  for (const row of rows) {
+    before[row.key] = redact(row.key, previous.get(row.key) ?? null)
+    after[row.key] = redact(row.key, row.value)
+  }
+  await logAdminAction({
+    actorId: auth.userId,
+    action: "settings.update",
+    targetTable: "platform_settings",
+    targetId: rows.map((r) => r.key).join(",").slice(0, 200),
+    before,
+    after,
+    request,
+  })
 
   return NextResponse.json({ settings: (data ?? []) as PlatformSetting[] })
 }

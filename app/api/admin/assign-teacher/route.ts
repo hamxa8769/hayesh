@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { notifyTeacherByTeacherId, notifyUser } from "@/lib/notifications"
@@ -144,6 +145,14 @@ export async function POST(
       }),
     ])
 
+    await logAdminAction({
+      actorId: user.id,
+      action: "student_request.assign_teacher",
+      targetTable: "student_requests",
+      targetId: String(data[0].id),
+      after: { status: data[0].status, assigned_teacher_id: teacher_id },
+      request,
+    })
     return NextResponse.json({ id: data[0].id, status: data[0].status })
   }
 
@@ -173,5 +182,13 @@ export async function POST(
     actionUrl: "/parent/requests",
   })
 
+  await logAdminAction({
+    actorId: user.id,
+    action: "student_request.decline",
+    targetTable: "student_requests",
+    targetId: String(data[0].id),
+    after: { status: data[0].status },
+    request,
+  })
   return NextResponse.json({ id: data[0].id, status: data[0].status })
 }

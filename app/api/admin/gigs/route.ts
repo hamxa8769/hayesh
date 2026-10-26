@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { requireUser } from "@/lib/auth/require-user"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -45,5 +46,13 @@ export async function POST(request: Request): Promise<NextResponse<GigDecisionRe
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
   if (!data) return NextResponse.json({ error: "Gig not found" }, { status: 404 })
+  await logAdminAction({
+    actorId: auth.user.userId,
+    action: parsed.data.status === "approved" ? "gig.approve" : "gig.reject",
+    targetTable: "gigs",
+    targetId: data.id as string,
+    after: { status: data.status },
+    request,
+  })
   return NextResponse.json({ id: data.id as string, status: data.status as string })
 }

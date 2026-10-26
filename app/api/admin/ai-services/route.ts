@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { DEFAULT_AI_SERVICE_MODEL } from "@/lib/ai/claude"
@@ -163,6 +164,13 @@ export async function POST(
       return NextResponse.json({ error: insertError.message }, { status: 400 })
     }
 
+    await logAdminAction({
+      actorId: auth.userId,
+      action: "ai_service.seed",
+      targetTable: "ai_services",
+      after: { seeded: toInsert.length },
+      request,
+    })
     return NextResponse.json({ seeded: toInsert.length, skipped: DEFAULT_AI_SERVICES.length - toInsert.length })
   }
 
@@ -182,6 +190,14 @@ export async function POST(
     return NextResponse.json({ error: "Failed to create service" }, { status: 500 })
   }
 
+  await logAdminAction({
+    actorId: auth.userId,
+    action: "ai_service.create",
+    targetTable: "ai_services",
+    targetId: String((data as AIService).id),
+    after: { title: fields.title, status: fields.status, ai_model: fields.ai_model },
+    request,
+  })
   return NextResponse.json({ service: data as AIService }, { status: 201 })
 }
 
@@ -221,6 +237,16 @@ export async function PATCH(request: Request): Promise<NextResponse<{ service: A
     return NextResponse.json({ error: "Service not found" }, { status: 404 })
   }
 
+  // The system prompt is confidential: record which fields changed, never their values.
+  const { system_prompt: promptChange, ...safeFields } = fields
+  await logAdminAction({
+    actorId: auth.userId,
+    action: "ai_service.update",
+    targetTable: "ai_services",
+    targetId: id,
+    after: { ...safeFields, ...(promptChange !== undefined ? { system_prompt: "[changed]" } : {}) },
+    request,
+  })
   return NextResponse.json({ service: data as AIService })
 }
 
@@ -241,5 +267,12 @@ export async function DELETE(request: Request): Promise<NextResponse<{ success: 
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
+  await logAdminAction({
+    actorId: auth.userId,
+    action: "ai_service.delete",
+    targetTable: "ai_services",
+    targetId: id,
+    request,
+  })
   return NextResponse.json({ success: true })
 }
