@@ -2,10 +2,12 @@
 
 import { useEffect } from "react"
 import Link from "next/link"
+import * as Sentry from "@sentry/nextjs"
 import { Button } from "@/components/ui/button"
 
 export default function RouteError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
+    Sentry.captureException(error)
     console.error("Route error:", error.digest ?? error.message)
   }, [error])
 
