@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getProvider, ProviderNotImplementedError, WebhookSignatureError } from "@/lib/payments/providers"
-import { markTransactionPaid, type SettleOptions } from "@/lib/payments/settle"
+import { markTransactionPaid } from "@/lib/payments/settle"
 import { claimWebhookEvent, finishWebhookEvent, releaseWebhookEvent } from "@/lib/payments/webhook-events"
 import { toMinorUnits } from "@/lib/payments/stripe"
 import { createAdminClient } from "@/lib/supabase/admin"
