@@ -120,8 +120,17 @@ export default function TeacherOnboardingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `watchedValues` (not `form`) is the intentional re-validation trigger
   }, [step, watchedValues])
 
-  const goBack = () => setStep((s) => Math.max(0, s - 1))
-  const goNext = () => setStep((s) => Math.min(STEPS.length - 1, s + 1))
+  // Disable Next until the NEW step has been validated: otherwise the
+  // previous step's `true` lets a fast second click skip a step's checks.
+  const goBack = () => {
+    setCanNext(false)
+    setStep((s) => Math.max(0, s - 1))
+  }
+  const goNext = () => {
+    if (!canNext) return
+    setCanNext(false)
+    setStep((s) => Math.min(STEPS.length - 1, s + 1))
+  }
 
   const onSubmit = async (data: OnboardingValues) => {
     if (!userId) {
