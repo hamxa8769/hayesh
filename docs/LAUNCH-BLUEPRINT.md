@@ -20,6 +20,8 @@ file it touches. Status legend: ✅ already done · ⚠️ partial · ❌ missin
 | Recording retention **30 and 90 days** | Admin default + per-teacher override (`recording_retention_days` ∈ {30, 90}); a daily job deletes expired files from R2 |
 | **Manual payments now, automatic later** | ✅ Done in Sprint 1: provider registry (manual always on; Stripe/Simpaisa switch on by env), idempotent webhooks — see `PAYMENTS-AUTOMATION.md` |
 
+**Sprint 2 status: ✅ built** — weekly timetables generate classes for active enrolments (migration 031), database-level double-booking guard (classes + demos), Join button with server-enforced window, LiveKit webhook → attendance / live / no-show (+ cron for classes nobody joined), recordings on R2 with 30/90-day retention and presigned playback. Implemented on the existing `meetings` stack instead of a new `class_sessions` table, so tokens, waiting room, moderation and chat are reused.
+
 **Sprint 1 status: ✅ shipped** — distributed rate limiting (Upstash, fallback in-memory), Sentry (inert without DSN), report-only CSP, append-only admin audit log, admin TOTP two-factor (middleware + RLS), payment provider registry + webhook dedupe, performance indexes, pg_cron scheduler, encrypted weekly backups.
 
 ---

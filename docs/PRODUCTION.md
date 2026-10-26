@@ -78,7 +78,8 @@ supabase-migrations/026-admin-audit-log.sql         ← append-only admin audit 
 supabase-migrations/027-payment-webhook-events.sql  ← REQUIRED before deploying (Stripe webhook uses it)
 supabase-migrations/028-performance-indexes.sql
 supabase-migrations/029-pg-cron-scheduler.sql       ← then add the 2 Vault secrets (see 3.6)
-supabase-migrations/030-mfa-rls-enforcement.sql     ← run LAST; re-run whenever new tables are added
+supabase-migrations/030-mfa-rls-enforcement.sql     ← re-run whenever new tables are added
+supabase-migrations/031-classroom-timetable.sql     ← Sprint 2 classroom; then re-run 030
 ```
 
 Every migration has been verified against a real Postgres (local
@@ -165,6 +166,30 @@ The daily Vercel cron in `vercel.json` stays as a safety net.
   retention); run it once by hand (Actions → DB backup → Run workflow) and
   test a restore into a scratch project.
 * **Automatic payments later:** see `docs/PAYMENTS-AUTOMATION.md`.
+
+### 3.6c Classroom (Sprint 2)
+* **Timetable:** teachers open **Timetable**, add weekly classes and pick
+  their enrolled students. Classes for the next 14 days are created
+  automatically (every 10 minutes via pg_cron → `/api/cron/classes`) for
+  students whose tuition is **active**; lapsed students drop out of future
+  classes automatically. Double booking (class vs class vs demo) is blocked
+  by the database.
+* **Join:** the "Join class" button on teacher/parent dashboards opens 10
+  minutes before start and closes 15 minutes after the end. Reminders go out
+  1 hour before.
+* **LiveKit webhook (needed for attendance, no-shows, recordings):** LiveKit
+  Cloud → project → Settings → Webhooks → add
+  `https://<your-domain>/api/webhooks/livekit` (signed with your existing
+  `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`).
+* **Recordings on Cloudflare R2 (free 10 GB):** R2 → create bucket
+  `hayesh-recordings` → *Manage API tokens* (Object Read & Write on that
+  bucket) → set in Vercel:
+  `LIVEKIT_EGRESS_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com`,
+  `LIVEKIT_EGRESS_S3_BUCKET`, `LIVEKIT_EGRESS_S3_ACCESS_KEY`,
+  `LIVEKIT_EGRESS_S3_SECRET`, `LIVEKIT_EGRESS_S3_REGION=auto`.
+* **Retention:** Admin → Settings → *Class recordings — keep for* 30 or 90
+  days (platform default); per-teacher override on the teacher's admin card.
+  Expired recordings are deleted from R2 automatically.
 * **Plans:** Vercel **Hobby is for non-commercial use** — move to Pro before
   taking real payments. Supabase Free pauses after 7 days without traffic and
   has 500 MB DB / 1 GB storage — upgrade when users arrive.
