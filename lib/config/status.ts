@@ -1,3 +1,5 @@
+import { isEgressConfigured } from "@/lib/livekit/egress"
+import { isRecordingStorageConfigured } from "@/lib/recordings/r2"
 import { isSimpaisaEnabled } from "@/lib/payments/providers/simpaisa"
 
 if (typeof window !== "undefined") {
@@ -41,6 +43,7 @@ export function getConfigChecks(): ConfigCheck[] {
     { key: "CRON_SECRET", label: "Daily jobs secret", level: "required", ok: has("CRON_SECRET"), impact: "Tuition renewals, auto-completing gig orders and expiring featured listings never run." },
     { key: "ANTHROPIC_API_KEY", label: "Claude API key", level: "required", ok: has("ANTHROPIC_API_KEY"), impact: "Paid AI Studio orders can't be generated; JARVIS falls back to basic chat." },
     { key: "NEXT_PUBLIC_LIVEKIT_URL", label: "LiveKit (video) server", level: "recommended", ok: has("NEXT_PUBLIC_LIVEKIT_URL") && has("LIVEKIT_API_KEY") && has("LIVEKIT_API_SECRET"), impact: "Demo lessons and meetings can't start." },
+    { key: "LIVEKIT_EGRESS_S3_BUCKET", label: "Class recordings storage (R2/S3)", level: "recommended", ok: isEgressConfigured() && isRecordingStorageConfigured(), impact: "Teachers can't record classes.", },
     { key: "RESEND_API_KEY", label: "Transactional email", level: "recommended", ok: has("RESEND_API_KEY") && has("EMAIL_FROM"), impact: "Payment and order emails aren't sent (in-app notifications still work)." },
     { key: "NEXT_PUBLIC_SUPPORT_EMAIL", label: "Support contact", level: "recommended", ok: has("NEXT_PUBLIC_SUPPORT_EMAIL") || has("NEXT_PUBLIC_SUPPORT_WHATSAPP"), impact: "Contact page only offers in-app support." },
     { key: "STRIPE_SECRET_KEY", label: "Card payments (Stripe)", level: "optional", ok: has("STRIPE_SECRET_KEY") && has("STRIPE_WEBHOOK_SECRET"), impact: "Only bank / JazzCash / Easypaisa payments are offered." },
