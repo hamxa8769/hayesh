@@ -3,6 +3,7 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { decryptField, encryptField } from "@/lib/crypto/field-encryption"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { rateLimit } from "@/lib/security/rate-limit"
 
 /**
  * POST /api/payouts — teacher/seller withdrawal request intake.
@@ -57,6 +58,14 @@ export async function POST(request: Request): Promise<NextResponse<PayoutSuccess
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const limited = await rateLimit(`payout:${user.id}`, 10, 3_600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
   }
 
   let body: unknown

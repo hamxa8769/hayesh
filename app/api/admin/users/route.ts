@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { Profile, Teacher, Seller } from "@/types/database"
@@ -215,6 +216,24 @@ export async function PATCH(
       return NextResponse.json({ error: profileUpdateError.message }, { status: 400 })
     }
     if (updatedProfile) response.profile = updatedProfile as Profile
+    const roleChanged = accountChanges.role !== undefined && accountChanges.role !== targetProfile.role
+    const activeChanged = accountChanges.is_active !== undefined && accountChanges.is_active !== (targetProfile.is_active ?? true)
+    const action = roleChanged
+      ? "user.role_change"
+      : activeChanged
+        ? accountChanges.is_active === false
+          ? "user.suspend"
+          : "user.reactivate"
+        : "user.update"
+    await logAdminAction({
+      actorId: auth.userId,
+      action,
+      targetTable: "profiles",
+      targetId: user_id,
+      before: roleChanged || activeChanged ? { role: targetProfile.role, is_active: targetProfile.is_active } : null,
+      after: { ...profileChanges, ...accountChanges },
+      request,
+    })
   }
 
   if (hasTeacherChanges && teacher) {
@@ -233,6 +252,14 @@ export async function PATCH(
       return NextResponse.json({ error: "Teacher record not found for this user" }, { status: 404 })
     }
     response.teacher = updatedTeacher as Teacher
+    await logAdminAction({
+      actorId: auth.userId,
+      action: teacherChanges.status !== undefined ? `teacher.${teacherChanges.status}` : "teacher.update",
+      targetTable: "teachers",
+      targetId: teacher.id,
+      after: teacherChanges,
+      request,
+    })
   }
 
   if (hasSellerChanges && seller) {
@@ -251,6 +278,14 @@ export async function PATCH(
       return NextResponse.json({ error: "Seller record not found for this user" }, { status: 404 })
     }
     response.seller = updatedSeller as Seller
+    await logAdminAction({
+      actorId: auth.userId,
+      action: sellerChanges.status !== undefined ? `seller.${sellerChanges.status}` : "seller.update",
+      targetTable: "sellers",
+      targetId: seller.id,
+      after: sellerChanges,
+      request,
+    })
   }
 
   return NextResponse.json(response)

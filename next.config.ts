@@ -1,14 +1,21 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
+import { buildCsp } from "./lib/security/csp";
 
-// Baseline security headers for every route. A strict CSP is intentionally
-// not set yet: the app loads LiveKit (wss), Supabase, Stripe and inline
-// theme/branding scripts, so a CSP needs its own tested rollout.
+// Baseline security headers for every route. The CSP ships as Report-Only so
+// nothing breaks at launch; flip the header name to enforce once reports are clean.
 const SECURITY_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   // Meetings need camera/mic/screen-share on our own origin only.
+  { key: "Content-Security-Policy-Report-Only", value: buildCsp({
+    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    NEXT_PUBLIC_LIVEKIT_URL: process.env.NEXT_PUBLIC_LIVEKIT_URL,
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    SENTRY_DSN: process.env.SENTRY_DSN,
+  }) },
   { key: "Permissions-Policy", value: "camera=(self), microphone=(self), display-capture=(self), geolocation=()" },
 ];
 
@@ -35,4 +42,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const hasSentryAuth = Boolean(process.env.SENTRY_AUTH_TOKEN);
+
+// Everything Sentry does at build time is skipped silently without an auth token.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  telemetry: false,
+  sourcemaps: { disable: !hasSentryAuth, deleteSourcemapsAfterUpload: true },
+  bundleSizeOptimizations: { excludeDebugStatements: true },
+  suppressOnRouterTransitionStartWarning: true,
+});

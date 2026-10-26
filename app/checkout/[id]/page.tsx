@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation"
 import { ArrowLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { getCommerceSettings } from "@/lib/payments/settings"
-import { isStripeEnabled } from "@/lib/payments/stripe"
+import { getAutomaticProviders, toProviderInfo } from "@/lib/payments/providers"
 import { AppShell } from "@/components/layout/AppShell"
 import { CheckoutClient } from "@/components/checkout/CheckoutClient"
 import type { Transaction } from "@/types/database"
@@ -49,7 +49,7 @@ export default async function CheckoutPage({
       <CheckoutClient
         transaction={transaction}
         accounts={settings.accounts}
-        stripeEnabled={isStripeEnabled()}
+        providers={getAutomaticProviders(transaction.currency === "USD" ? "USD" : "PKR").map(toProviderInfo)}
         userId={user.id}
       />
     </div>

@@ -1,0 +1,65 @@
+# Weekly encrypted database backup (Supabase FREE has no downloadable backups / PITR).
+#
+# Setup (GitHub → repo → Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL     Supabase → Connect → "Session pooler" URI (IPv4; the direct
+#                       connection is IPv6-only and GitHub runners can't reach it).
+#   BACKUP_PASSPHRASE   at least 32 random characters (openssl rand -base64 32), stored ALSO in your password manager —
+#                       without it the backup cannot be decrypted.
+#
+# Keep this repository PRIVATE: artifacts contain password hashes, MFA secrets
+# and tokens (encrypted, but only as strong as the passphrase).
+# Restore: download the artifact, then
+#   gpg --batch --passphrase "$BACKUP_PASSPHRASE" -d hayesh-*.dump.gpg > hayesh.dump
+#   pg_restore --no-owner --clean --if-exists -d "<target db url>" hayesh.dump
+# Storage files (images, proofs) live in Supabase Storage and are NOT in this dump.
+name: DB backup
+
+on:
+  schedule:
+    - cron: "17 2 * * 0" # Sundays 02:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Check secrets
+        id: check
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "Backup secrets not configured — skipping."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dump (pg_dump 17, custom format)
+        if: steps.check.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u +%Y%m%d-%H%M)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          docker run --rm -e PGURL="$SUPABASE_DB_URL" postgres:17 \
+            sh -c 'pg_dump "$PGURL" -Fc --no-owner --no-privileges -n public -n auth -n storage' \
+            > "hayesh-$STAMP.dump"
+          test -s "hayesh-$STAMP.dump"
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" \
+            --symmetric --cipher-algo AES256 --s2k-mode 3 --s2k-digest-algo SHA512 --s2k-count 65011712 -o "hayesh-$STAMP.dump.gpg" "hayesh-$STAMP.dump"
+          rm "hayesh-$STAMP.dump"
+          ls -lh "hayesh-$STAMP.dump.gpg"
+
+      - name: Upload encrypted backup
+        if: steps.check.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hayesh-db-${{ env.STAMP }}
+          path: hayesh-*.dump.gpg
+          retention-days: 30
+          if-no-files-found: error

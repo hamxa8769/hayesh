@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!auth.ok) return auth.response
   const { user } = auth
 
-  const limited = rateLimit(`proof:${user.userId}`, 10, 60_000)
+  const limited = await rateLimit(`proof:${user.userId}`, 10, 60_000)
   if (!limited.ok) return NextResponse.json({ error: "Too many attempts. Please wait a minute." }, { status: 429 })
 
   let body: unknown

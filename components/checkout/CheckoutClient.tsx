@@ -18,12 +18,14 @@ import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils/format"
 import { CopyButton, PaymentAccountCard, hasPaymentAccounts } from "@/components/checkout/PaymentAccountCard"
 import { ProofUploadForm } from "@/components/checkout/ProofUploadForm"
 import type { PaymentAccounts } from "@/lib/payments/settings"
+import type { EnabledProviderInfo } from "@/lib/payments/providers/types"
 import type { Transaction } from "@/types/database"
 
 interface CheckoutClientProps {
   transaction: Transaction
   accounts: PaymentAccounts
-  stripeEnabled: boolean
+  /** Automatic gateways enabled for this currency (empty = manual rail only). */
+  providers: readonly EnabledProviderInfo[]
   userId: string
 }
 
@@ -81,14 +83,15 @@ function Banner({
   )
 }
 
-export function CheckoutClient({ transaction: tx, accounts, stripeEnabled, userId }: CheckoutClientProps) {
+export function CheckoutClient({ transaction: tx, accounts, providers, userId }: CheckoutClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const stripeReturn = searchParams.get("stripe") === "success"
+  const stripeReturn = searchParams.get("stripe") === "success" || searchParams.get("simpaisa") === "success"
   const status = tx.status ?? "pending"
   const hasProof = Boolean(tx.bank_transfer_proof)
   const awaitingPayment = status === "pending" && !hasProof
-  const [tab, setTab] = useState<"card" | "manual">(stripeEnabled ? "card" : "manual")
+  const hasProviders = providers.length > 0
+  const [tab, setTab] = useState<string>(providers[0]?.id ?? "manual")
   const [cardLoading, setCardLoading] = useState(false)
   const [cardError, setCardError] = useState<string | null>(null)
   const [pollTimedOut, setPollTimedOut] = useState(false)
@@ -109,11 +112,15 @@ export function CheckoutClient({ transaction: tx, accounts, stripeEnabled, userI
     return () => clearInterval(id)
   }, [stripeReturn, status, router])
 
-  async function payWithCard() {
+  async function payOnline(providerId: string) {
     setCardError(null)
     setCardLoading(true)
     try {
-      const res = await fetch(`/api/checkout/${tx.id}/stripe`, { method: "POST" })
+      const res = await fetch(`/api/checkout/${tx.id}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: providerId }),
+      })
       const body = (await res.json().catch(() => null)) as { url?: string; error?: string } | null
       if (!res.ok || !body?.url) {
         throw new Error(body?.error ?? "Card payments are not available right now.")
@@ -127,6 +134,7 @@ export function CheckoutClient({ transaction: tx, accounts, stripeEnabled, userI
 
   const currency = tx.currency === "USD" ? "USD" : "PKR"
   const dest = nextDestination(tx.type)
+  const activeProvider = providers.find((p) => p.id === tab) ?? null
   const manualConfigured = hasPaymentAccounts(accounts)
 
   return (
@@ -219,12 +227,16 @@ export function CheckoutClient({ transaction: tx, accounts, stripeEnabled, userI
         <section className="rounded-lg border border-border bg-surface p-5 sm:p-6">
           <Banner tone="warning" icon={<AlertTriangle className="size-5" />} title="Awaiting payment" />
 
-          {stripeEnabled && (
+          {hasProviders && (
             <div role="tablist" className="mt-5 flex gap-1 rounded-lg border border-border bg-background/40 p-1">
-              {([
-                { id: "card", label: "Card", icon: <CreditCard className="size-4" /> },
+              {[
+                ...providers.map((p) => ({
+                  id: p.id as string,
+                  label: p.label,
+                  icon: p.id === "stripe" ? <CreditCard className="size-4" /> : <Smartphone className="size-4" />,
+                })),
                 { id: "manual", label: "Bank / JazzCash / Easypaisa", icon: <Landmark className="size-4" /> },
-              ] as const).map((t) => (
+              ].map((t) => (
                 <button
                   key={t.id}
                   type="button"
@@ -245,10 +257,11 @@ export function CheckoutClient({ transaction: tx, accounts, stripeEnabled, userI
             </div>
           )}
 
-          {stripeEnabled && tab === "card" ? (
+          {activeProvider ? (
             <div className="mt-5 flex flex-col gap-4">
               <p className="text-sm text-text-muted">
-                Pay securely by card. You will be redirected to our payment partner to complete the payment.
+                {activeProvider.id === "stripe" ? "Pay securely by card." : `Pay securely online (${activeProvider.methods.join(", ")}).`} You will be
+                redirected to our payment partner to complete the payment.
               </p>
               {cardError && (
                 <p role="alert" className="flex items-start gap-2 text-sm text-accent-danger">
@@ -256,9 +269,11 @@ export function CheckoutClient({ transaction: tx, accounts, stripeEnabled, userI
                   {cardError}
                 </p>
               )}
-              <Button variant="aurora" size="lg" onClick={payWithCard} disabled={cardLoading}>
-                {cardLoading ? <Loader2 className="animate-spin" /> : <CreditCard />}
-                {cardLoading ? "Redirecting…" : `Pay ${formatCurrency(tx.gross_amount, currency)} by card`}
+              <Button variant="aurora" size="lg" onClick={() => payOnline(activeProvider.id)} disabled={cardLoading}>
+                {cardLoading ? <Loader2 className="animate-spin" /> : activeProvider.id === "stripe" ? <CreditCard /> : <Smartphone />}
+                {cardLoading
+                  ? "Redirecting…"
+                  : `Pay ${formatCurrency(tx.gross_amount, currency)} ${activeProvider.id === "stripe" ? "by card" : "online"}`}
               </Button>
             </div>
           ) : (

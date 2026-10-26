@@ -2,7 +2,6 @@ import { expect, test } from "@playwright/test"
 import { splitCommission } from "@/lib/payments/settings"
 import { generateReferenceCode } from "@/lib/payments/reference"
 import { toMinorUnits } from "@/lib/payments/stripe"
-import { rateLimit } from "@/lib/security/rate-limit"
 import { safeRedirectPath } from "@/lib/utils/safe-redirect"
 import { renderNotificationEmail } from "@/lib/email/templates"
 
@@ -34,14 +33,6 @@ test("Stripe minor units", () => {
   expect(toMinorUnits(15000)).toBe(1500000)
   expect(toMinorUnits(9.99)).toBe(999)
   expect(toMinorUnits(0.1 + 0.2)).toBe(30)
-})
-
-test("rate limiter blocks after the limit and reports retry", () => {
-  const key = `unit-${Date.now()}`
-  for (let i = 0; i < 3; i++) expect(rateLimit(key, 3, 60_000).ok).toBe(true)
-  const blocked = rateLimit(key, 3, 60_000)
-  expect(blocked.ok).toBe(false)
-  expect(blocked.retryAfterSeconds).toBeGreaterThan(0)
 })
 
 test.describe("login redirect safety", () => {

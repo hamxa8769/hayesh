@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -146,6 +147,13 @@ export async function POST(
     return NextResponse.json({ error: "Failed to create testimonial" }, { status: 500 })
   }
 
+  await logAdminAction({
+    actorId: auth.userId,
+    action: "testimonial.create",
+    targetTable: "testimonials",
+    targetId: String((data as TestimonialRow).id),
+    request,
+  })
   return NextResponse.json({ testimonial: data as TestimonialRow }, { status: 201 })
 }
 
@@ -187,6 +195,14 @@ export async function PATCH(
     return NextResponse.json({ error: "Testimonial not found" }, { status: 404 })
   }
 
+  await logAdminAction({
+    actorId: auth.userId,
+    action: "testimonial.update",
+    targetTable: "testimonials",
+    targetId: id,
+    after: fields as Record<string, unknown>,
+    request,
+  })
   return NextResponse.json({ testimonial: data as TestimonialRow })
 }
 
@@ -207,5 +223,12 @@ export async function DELETE(request: Request): Promise<NextResponse<{ success: 
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
+  await logAdminAction({
+    actorId: auth.userId,
+    action: "testimonial.delete",
+    targetTable: "testimonials",
+    targetId: id,
+    request,
+  })
   return NextResponse.json({ success: true })
 }

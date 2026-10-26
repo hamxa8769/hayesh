@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { encryptField } from "@/lib/crypto/field-encryption"
 import { payoutAccountSchema, updatePayoutAccountSchema } from "@/components/shared/payout-account-schema"
 import type { PayoutAccountListItem, PayoutAccountValues } from "@/components/shared/payout-account-schema"
+import { rateLimit } from "@/lib/security/rate-limit"
 
 /**
  * /api/payout-accounts — a teacher's or seller's saved withdrawal account.
@@ -99,6 +100,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<SaveRespo
   const auth = await authorizeCaller(supabase)
   if ("deny" in auth) return auth.deny
 
+  const limited = await rateLimit(`payout-acct:${auth.userId}`, 20, 3_600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
+  }
+
   let body: unknown
   try {
     body = await request.json()
@@ -158,6 +167,14 @@ export async function PUT(request: NextRequest): Promise<NextResponse<SaveRespon
   const supabase = await createClient()
   const auth = await authorizeCaller(supabase)
   if ("deny" in auth) return auth.deny
+
+  const limited = await rateLimit(`payout-acct:${auth.userId}`, 20, 3_600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
+  }
 
   let body: unknown
   try {
@@ -219,6 +236,14 @@ export async function DELETE(request: NextRequest): Promise<NextResponse<DeleteR
   const supabase = await createClient()
   const auth = await authorizeCaller(supabase)
   if ("deny" in auth) return auth.deny
+
+  const limited = await rateLimit(`payout-acct:${auth.userId}`, 20, 3_600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
+  }
 
   const id = request.nextUrl.searchParams.get("id")
   const parsedId = z.string().uuid().safeParse(id)
