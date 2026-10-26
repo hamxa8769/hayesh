@@ -9,8 +9,9 @@ import {
   type LiveKitWebhookEvent,
 } from '@/lib/livekit/webhook'
 import { meetingIdFromRoomName } from '@/lib/livekit/rooms'
-import { decideClassOutcome } from '@/lib/livekit/class-outcome'
-import { notifyUser } from '@/lib/notifications'
+import { decideRoomFinished } from '@/lib/livekit/class-outcome'
+import { isWithinJoinWindow } from '@/lib/classes/join-window'
+import { loadClassFacts, notifyMissedClass } from '@/lib/classes/outcome-notify'
 
 const PROVIDER = 'livekit'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -25,6 +26,7 @@ interface MeetingRow {
   organizer_id: string
   participant_id: string | null
   scheduled_at: string
+  duration_minutes: number | null
 }
 
 function fail(error: string, status: number): NextResponse {
@@ -32,7 +34,7 @@ function fail(error: string, status: number): NextResponse {
 }
 
 async function resolveMeeting(admin: Admin, roomName: string): Promise<MeetingRow | null> {
-  const columns = 'id, title, status, organizer_id, participant_id, scheduled_at'
+  const columns = 'id, title, status, organizer_id, participant_id, scheduled_at, duration_minutes'
   const idFromName = meetingIdFromRoomName(roomName)
   if (idFromName) {
     const { data } = await admin.from('meetings').select(columns).eq('id', idFromName).maybeSingle()
@@ -96,42 +98,28 @@ async function handleRoomFinished(admin: Admin, meeting: MeetingRow, event: Live
 
   if (meeting.status !== 'scheduled' && meeting.status !== 'live') return
 
-  const { data: attendance } = await admin.from('class_attendance').select('profile_id').eq('meeting_id', meeting.id)
-  const attendees = new Set(((attendance ?? []) as { profile_id: string }[]).map((r) => r.profile_id))
-  const otherAttendees = [...attendees].filter((id) => id !== meeting.organizer_id).length
-
-  const { data: invites } = await admin.from('meeting_invitations').select('invitee_id').eq('meeting_id', meeting.id)
-  const invitees = new Set(((invites ?? []) as { invitee_id: string }[]).map((r) => r.invitee_id))
-  const expectedStudents = invitees.size + (meeting.participant_id && !invitees.has(meeting.participant_id) ? 1 : 0)
-
-  const outcome = decideClassOutcome({
-    hostJoined: attendees.has(meeting.organizer_id),
-    otherAttendees,
-    expectedStudents,
+  const facts = await loadClassFacts(admin, meeting)
+  const decision = decideRoomFinished({
+    now: new Date(),
+    scheduledAt: meeting.scheduled_at,
+    durationMinutes: meeting.duration_minutes,
+    status: meeting.status,
+    hostJoined: facts.hostJoined,
+    studentAttendees: facts.studentAttendees,
+    expectedStudents: facts.expectedStudents,
   })
+  if (!decision.status) return
 
   const { data: updated } = await admin
     .from('meetings')
-    .update({ status: outcome })
+    .update({ status: decision.status })
     .eq('id', meeting.id)
-    .in('status', ['scheduled', 'live'])
+    .eq('status', meeting.status)
     .select('id')
     .maybeSingle()
-  if (!updated || outcome === 'completed') return
+  if (!updated || !decision.notify || decision.status === 'completed' || decision.status === 'scheduled') return
 
-  const title = meeting.title ?? 'Class'
-  const students = new Set(invitees)
-  if (meeting.participant_id) students.add(meeting.participant_id)
-  const recipients = [meeting.organizer_id, ...students]
-  const message =
-    outcome === 'no_show_teacher'
-      ? `${title} did not take place because the teacher did not join.`
-      : `${title} ended without any students joining.`
-  await Promise.all(
-    recipients.map((userId) =>
-      notifyUser({ userId, type: 'meeting_cancelled', title: 'Class missed', message, actionUrl: '/meetings' })
-    )
-  )
+  await notifyMissedClass(meeting, decision.status, facts.students)
 }
 
 function storageKeyFor(file: { filename?: string; location?: string }): string | null {
@@ -207,13 +195,16 @@ async function processEvent(event: LiveKitWebhookEvent): Promise<string> {
 
   switch (event.event) {
     case 'room_started':
-      if (meeting.status === 'scheduled') {
+      if (
+        meeting.status === 'scheduled' ||
+        ((meeting.status === 'no_show_teacher' || meeting.status === 'no_show_student') && isWithinJoinWindow(meeting))
+      ) {
         must(
           await admin
             .from('meetings')
             .update({ status: 'live', started_at: unixToIso(event.createdAt) ?? new Date().toISOString() })
             .eq('id', meeting.id)
-            .eq('status', 'scheduled'),
+            .eq('status', meeting.status),
           'room_started'
         )
       }
