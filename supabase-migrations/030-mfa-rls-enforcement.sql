@@ -5,9 +5,10 @@
 -- some tables straight from the browser with the user's JWT, which never
 -- passes through those routes. A stolen password must not unlock that path.
 --
--- Rule (Supabase's recommended pattern): if a user HAS a verified MFA
--- factor, every request they make must carry an aal2 JWT. Users without a
--- factor (all parents, teachers, sellers, buyers today) are unaffected.
+-- Rule (Supabase's recommended pattern): if an ADMIN has a verified MFA
+-- factor, every request they make must carry an aal2 JWT. Non-admins are
+-- never affected (only admins get the /auth/mfa challenge screen, so a
+-- non-admin who enrolled a factor via the raw API must not be locked out).
 -- Implemented as a RESTRICTIVE policy, so it is AND-ed with every existing
 -- permissive policy on each RLS-enabled table in `public` and on storage.
 --
@@ -26,6 +27,10 @@ as $$
       or not exists (
         select 1 from auth.mfa_factors f
         where f.user_id = auth.uid() and f.status = 'verified'
+      )
+      or not exists (
+        select 1 from public.profiles p
+        where p.id = auth.uid() and p.role = 'admin'
       );
 $$;
 

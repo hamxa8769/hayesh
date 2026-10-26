@@ -3,9 +3,11 @@
 # Setup (GitHub → repo → Settings → Secrets and variables → Actions):
 #   SUPABASE_DB_URL     Supabase → Connect → "Session pooler" URI (IPv4; the direct
 #                       connection is IPv6-only and GitHub runners can't reach it).
-#   BACKUP_PASSPHRASE   long random string, stored ALSO in your password manager —
+#   BACKUP_PASSPHRASE   at least 32 random characters (openssl rand -base64 32), stored ALSO in your password manager —
 #                       without it the backup cannot be decrypted.
 #
+# Keep this repository PRIVATE: artifacts contain password hashes, MFA secrets
+# and tokens (encrypted, but only as strong as the passphrase).
 # Restore: download the artifact, then
 #   gpg --batch --passphrase "$BACKUP_PASSPHRASE" -d hayesh-*.dump.gpg > hayesh.dump
 #   pg_restore --no-owner --clean --if-exists -d "<target db url>" hayesh.dump
@@ -49,7 +51,7 @@ jobs:
             > "hayesh-$STAMP.dump"
           test -s "hayesh-$STAMP.dump"
           gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_PASSPHRASE" \
-            --symmetric --cipher-algo AES256 -o "hayesh-$STAMP.dump.gpg" "hayesh-$STAMP.dump"
+            --symmetric --cipher-algo AES256 --s2k-mode 3 --s2k-digest-algo SHA512 --s2k-count 65011712 -o "hayesh-$STAMP.dump.gpg" "hayesh-$STAMP.dump"
           rm "hayesh-$STAMP.dump"
           ls -lh "hayesh-$STAMP.dump.gpg"
 
