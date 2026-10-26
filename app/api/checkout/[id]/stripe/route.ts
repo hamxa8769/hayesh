@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireUser } from "@/lib/auth/require-user"
+import { rateLimit } from "@/lib/security/rate-limit"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { stripeProvider } from "@/lib/payments/providers/stripe"
 import { PaymentRedirectError } from "@/lib/payments/providers/types"
@@ -22,6 +23,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const auth = await requireUser()
   if (!auth.ok) return auth.response
   const { user } = auth
+
+  const limited = await rateLimit(`checkout-stripe:${user.userId}`, 10, 60_000)
+  if (!limited.ok) return NextResponse.json({ error: "Too many checkout attempts. Please wait a minute." }, { status: 429 })
 
   const { data } = await createAdminClient().from("transactions").select("*").eq("id", id).eq("payer_id", user.userId).maybeSingle()
   const tx = data as Transaction | null

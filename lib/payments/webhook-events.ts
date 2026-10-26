@@ -7,17 +7,27 @@ if (typeof window !== "undefined") {
 /** A claimed-but-unfinished event older than this is assumed crashed and may be retried. */
 export const STALE_CLAIM_MS = 10 * 60 * 1000
 
-export type ClaimResult = "new" | "duplicate"
+export type ClaimResult = "new" | "duplicate" | "in_progress"
 
 /** Whether an unfinished claim has been abandoned long enough to re-process. */
 export function isStaleClaim(row: { processed_at: string | null; received_at: string }, now = Date.now()): boolean {
   return row.processed_at === null && now - new Date(row.received_at).getTime() > STALE_CLAIM_MS
 }
 
+/** Existing-claim state: finished, still being worked on, or abandoned. */
+export function classifyExistingClaim(
+  row: { processed_at: string | null; received_at: string },
+  now = Date.now(),
+): "duplicate" | "in_progress" | "stale" {
+  if (row.processed_at !== null) return "duplicate"
+  return isStaleClaim(row, now) ? "stale" : "in_progress"
+}
+
 /**
  * Records that this instance is handling (provider, eventId). Returns
- * "duplicate" when another delivery already claimed it, unless that claim
- * never finished and is stale, in which case we take it over.
+ * "duplicate" when the event was already fully processed, "in_progress" when
+ * another delivery holds an unfinished, non-stale claim (callers answer 503 so
+ * the provider retries), and "new" when we own it (including stale takeover).
  */
 export async function claimWebhookEvent(provider: string, eventId: string): Promise<ClaimResult> {
   const admin = createAdminClient()
@@ -31,7 +41,9 @@ export async function claimWebhookEvent(provider: string, eventId: string): Prom
     .eq("provider", provider)
     .eq("event_id", eventId)
     .maybeSingle()
-  if (!row || !isStaleClaim(row as { processed_at: string | null; received_at: string })) return "duplicate"
+  if (!row) return "in_progress"
+  const state = classifyExistingClaim(row as { processed_at: string | null; received_at: string })
+  if (state !== "stale") return state
 
   // Compare-and-set on the old received_at so only one retry takes over.
   const { data: taken } = await admin
@@ -43,7 +55,7 @@ export async function claimWebhookEvent(provider: string, eventId: string): Prom
     .eq("received_at", (row as { received_at: string }).received_at)
     .select("event_id")
     .maybeSingle()
-  return taken ? "new" : "duplicate"
+  return taken ? "new" : "in_progress"
 }
 
 export async function finishWebhookEvent(provider: string, eventId: string, outcome: string, transactionId?: string): Promise<void> {

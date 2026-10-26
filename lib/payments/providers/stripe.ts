@@ -29,29 +29,44 @@ export const stripeProvider: AutomaticPaymentProvider = {
       if (existing.status === "complete") throw new PaymentRedirectError("This payment is already being confirmed", 409)
     }
 
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer_email: ctx?.payerEmail || undefined,
-      client_reference_id: tx.id,
-      metadata: { transaction_id: tx.id, reference_code: tx.reference_code ?? "" },
-      payment_intent_data: { metadata: { transaction_id: tx.id } },
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency: tx.currency.toLowerCase(),
-            unit_amount: toMinorUnits(Number(tx.gross_amount)),
-            product_data: { name: tx.description ?? "Hayesh order" },
-          },
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        customer_email: ctx?.payerEmail || undefined,
+        client_reference_id: tx.id,
+        metadata: {
+          transaction_id: tx.id,
+          reference_code: tx.reference_code ?? "",
         },
-      ],
-      expires_at: Math.floor(Date.now() / 1000) + 60 * 60,
-      success_url: `${base}/checkout/${tx.id}?stripe=success`,
-      cancel_url: `${base}/checkout/${tx.id}?stripe=cancelled`,
-    })
+        payment_intent_data: { metadata: { transaction_id: tx.id } },
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: tx.currency.toLowerCase(),
+              unit_amount: toMinorUnits(Number(tx.gross_amount)),
+              product_data: { name: tx.description ?? "Hayesh order" },
+            },
+          },
+        ],
+        expires_at: Math.floor(Date.now() / 1000) + 60 * 60,
+        success_url: `${base}/checkout/${tx.id}?stripe=success`,
+        cancel_url: `${base}/checkout/${tx.id}?stripe=cancelled`,
+      },
+      // Same transaction + amount + currency => same key; a changed amount gets a new one.
+      {
+        idempotencyKey: `checkout-${tx.id}-${toMinorUnits(Number(tx.gross_amount))}-${tx.currency.toLowerCase()}`,
+      },
+    )
     if (!session.url) throw new PaymentRedirectError("Stripe returned no checkout URL", 502)
 
-    await admin.from("transactions").update({ processor_ref: session.id, updated_at: new Date().toISOString() }).eq("id", tx.id)
+    await admin
+      .from("transactions")
+      .update({
+        processor_ref: session.id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", tx.id)
     return { url: session.url }
   },
 
@@ -65,7 +80,10 @@ export const stripeProvider: AutomaticPaymentProvider = {
       throw new WebhookSignatureError()
     }
     if (event.type !== "checkout.session.completed" && event.type !== "checkout.session.async_payment_succeeded") {
-      return { eventId: event.id, kind: event.type === "checkout.session.async_payment_failed" ? "failed" : "ignored" }
+      return {
+        eventId: event.id,
+        kind: event.type === "checkout.session.async_payment_failed" ? "failed" : "ignored",
+      }
     }
     const session = event.data.object
     const currency = (session.currency ?? "").toUpperCase()

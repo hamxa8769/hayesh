@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireUser } from "@/lib/auth/require-user"
+import { rateLimit } from "@/lib/security/rate-limit"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getProvider, PaymentRedirectError, ProviderNotImplementedError } from "@/lib/payments/providers"
 import type { Transaction } from "@/types/database"
@@ -26,6 +27,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const auth = await requireUser()
   if (!auth.ok) return auth.response
   const { user } = auth
+
+  const limited = await rateLimit(`checkout-pay:${user.userId}`, 10, 60_000)
+  if (!limited.ok) return NextResponse.json({ error: "Too many checkout attempts. Please wait a minute." }, { status: 429 })
 
   const { data } = await createAdminClient().from("transactions").select("*").eq("id", id).eq("payer_id", user.userId).maybeSingle()
   const tx = data as Transaction | null

@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs"
+import { redactEmails } from "./sentry-options"
 
 type ErrorContext = Record<string, string | number | boolean | null | undefined>
 
@@ -18,9 +19,11 @@ export function reportError(error: unknown, context: ErrorContext): void {
     }
     const tags: Record<string, string> = {}
     for (const [key, value] of Object.entries(context)) {
-      if (value !== null && value !== undefined) tags[key] = String(value)
+      if (value !== null && value !== undefined) tags[key] = typeof value === "string" ? redactEmails(value) : String(value)
     }
-    Sentry.captureException(error, { tags, extra: { ...context } })
+    const extra: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(context)) extra[key] = typeof value === "string" ? redactEmails(value) : value
+    Sentry.captureException(error, { tags, extra })
   } catch {
     // Reporting must never break the caller.
   }

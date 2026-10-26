@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import type { VerifiedPaymentEvent } from "@/lib/payments/providers/types"
 import { getProvider, ProviderNotImplementedError, WebhookSignatureError } from "@/lib/payments/providers"
 import { markTransactionPaid } from "@/lib/payments/settle"
 import { claimWebhookEvent, finishWebhookEvent, releaseWebhookEvent } from "@/lib/payments/webhook-events"
@@ -42,11 +43,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not record event" }, { status: 500 })
   }
   if (claim === "duplicate") return NextResponse.json({ received: true, duplicate: true })
+  if (claim === "in_progress") return NextResponse.json({ error: "Event is being processed — retry" }, { status: 503 })
+
+  try {
+    return await settle(parsed, parsed.transactionId)
+  } catch (error: unknown) {
+    console.error("Simpaisa webhook settle failed", error instanceof Error ? error.message : error)
+    await releaseWebhookEvent(PROVIDER, parsed.eventId)
+    return NextResponse.json({ error: "Could not settle payment" }, { status: 500 })
+  }
+}
+
+async function settle(parsed: VerifiedPaymentEvent, transactionId: string): Promise<NextResponse> {
 
   const { data: tx } = await createAdminClient()
     .from("transactions")
     .select("id, status, gross_amount, currency, reference_code, processor_ref")
-    .eq("id", parsed.transactionId)
+    .eq("id", transactionId)
     .maybeSingle()
   if (!tx) {
     await releaseWebhookEvent(PROVIDER, parsed.eventId)
@@ -57,6 +70,17 @@ export async function POST(request: Request) {
     // Leave the transaction pending: the payer can retry or use the manual rail.
     await finishWebhookEvent(PROVIDER, parsed.eventId, "failed", tx.id as string)
     return NextResponse.json({ received: true })
+  }
+
+  if (tx.status !== "pending") {
+    await notifyAdmins({
+      type: "payment_submitted",
+      title: "Simpaisa payment needs manual review",
+      message: `Online payment ${parsed.processorRef ?? parsed.eventId} for ${tx.reference_code ?? tx.id} arrived after the transaction was ${tx.status as string}. Check Simpaisa and refund or settle manually.`,
+      actionUrl: "/admin/payments",
+    })
+    await finishWebhookEvent(PROVIDER, parsed.eventId, "flagged_closed_tx", tx.id as string)
+    return NextResponse.json({ received: true, flagged: true })
   }
 
   const amountMatches =
@@ -73,7 +97,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true, flagged: true })
   }
 
-  const result = await markTransactionPaid(parsed.transactionId, {
+  const result = await markTransactionPaid(transactionId, {
     // settle.ts types `processor` as "manual" | "stripe"; widen it to include "simpaisa".
     processor: PROVIDER,
     processorRef: parsed.processorRef,
@@ -83,6 +107,6 @@ export async function POST(request: Request) {
     await releaseWebhookEvent(PROVIDER, parsed.eventId)
     return NextResponse.json({ error: result.error }, { status: 500 })
   }
-  await finishWebhookEvent(PROVIDER, parsed.eventId, result.alreadySettled ? "already_settled" : "settled", parsed.transactionId)
+  await finishWebhookEvent(PROVIDER, parsed.eventId, result.alreadySettled ? "already_settled" : "settled", transactionId)
   return NextResponse.json({ received: true })
 }

@@ -48,6 +48,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not record event" }, { status: 500 })
   }
   if (claim === "duplicate") return NextResponse.json({ received: true, duplicate: true })
+  if (claim === "in_progress") return NextResponse.json({ error: "Event is being processed — retry" }, { status: 503 })
+
+  try {
+    return await settle(event.id, session, transactionId)
+  } catch (error: unknown) {
+    console.error("Stripe webhook settle failed", error instanceof Error ? error.message : error)
+    await releaseWebhookEvent(PROVIDER, event.id)
+    return NextResponse.json({ error: "Could not settle payment" }, { status: 500 })
+  }
+}
+
+const CLOSED_STATUSES = new Set(["failed", "rejected", "cancelled", "canceled", "expired", "refunded"])
+
+async function settle(eventId: string, session: Stripe.Checkout.Session, transactionId: string): Promise<NextResponse> {
 
   const { data: tx } = await createAdminClient()
     .from("transactions")
@@ -56,7 +70,7 @@ export async function POST(request: Request) {
     .maybeSingle()
   if (!tx) {
     // Never 200 a miss: Stripe must retry (the row may not be committed yet).
-    await releaseWebhookEvent(PROVIDER, event.id)
+    await releaseWebhookEvent(PROVIDER, eventId)
     return NextResponse.json({ error: "Transaction not found" }, { status: 500 })
   }
 
@@ -64,7 +78,9 @@ export async function POST(request: Request) {
   const amountMatches =
     session.amount_total === toMinorUnits(Number(tx.gross_amount)) &&
     (session.currency ?? "").toLowerCase() === String(tx.currency).toLowerCase()
-  const paidToClosedTx = tx.status !== "pending" && tx.processor_ref !== session.id && tx.processor_ref !== session.payment_intent
+  const paidToClosedTx =
+    CLOSED_STATUSES.has(String(tx.status)) ||
+    (tx.status !== "pending" && tx.processor_ref !== session.id && tx.processor_ref !== session.payment_intent)
   if (!amountMatches || paidToClosedTx) {
     await notifyAdmins({
       type: "payment_submitted",
@@ -74,7 +90,7 @@ export async function POST(request: Request) {
       }. Check Stripe and refund or settle manually.`,
       actionUrl: "/admin/payments",
     })
-    await finishWebhookEvent(PROVIDER, event.id, "flagged", tx.id as string)
+    await finishWebhookEvent(PROVIDER, eventId, "flagged", tx.id as string)
     return NextResponse.json({ received: true, flagged: true })
   }
 
@@ -86,9 +102,9 @@ export async function POST(request: Request) {
   })
   if (!result.ok) {
     // Non-2xx makes Stripe retry later.
-    await releaseWebhookEvent(PROVIDER, event.id)
+    await releaseWebhookEvent(PROVIDER, eventId)
     return NextResponse.json({ error: result.error }, { status: 500 })
   }
-  await finishWebhookEvent(PROVIDER, event.id, result.alreadySettled ? "already_settled" : "settled", transactionId)
+  await finishWebhookEvent(PROVIDER, eventId, result.alreadySettled ? "already_settled" : "settled", transactionId)
   return NextResponse.json({ received: true })
 }
