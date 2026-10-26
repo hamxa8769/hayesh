@@ -13,6 +13,7 @@ import {
   Video,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { PastClasses } from "@/components/classes/PastClasses"
 import { Reveal } from "@/components/motion/Reveal"
 import { PanelGroup } from "@/components/dashboard/PanelGroup"
 import { cn } from "@/lib/utils/cn"
@@ -569,6 +570,8 @@ export default function SessionsPage() {
           </div>
         )}
       </section>
+
+      <PastClasses viewer="teacher" />
 
       <ScheduleMeetingModal
         open={scheduleTarget !== null}

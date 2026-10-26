@@ -17,7 +17,7 @@ if (typeof window !== "undefined") {
  */
 
 export interface SettleOptions {
-  processor: "manual" | "stripe"
+  processor: "manual" | "stripe" | "simpaisa"
   processorRef?: string
   confirmedBy?: string
   paymentMethod?: string

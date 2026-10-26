@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { notifyTeacherByTeacherId } from "@/lib/notifications"
+import { rateLimit } from "@/lib/security/rate-limit"
+import { scheduleErrorMessage } from "@/lib/classes/errors"
 
 /**
  * POST /api/demo-bookings — parent requests a free demo lesson with a teacher.
@@ -41,6 +43,14 @@ export async function POST(
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const limited = await rateLimit(`demo-booking:${user.id}`, 10, 3_600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
   }
 
   let body: unknown
@@ -93,6 +103,8 @@ export async function POST(
     .maybeSingle()
 
   if (error) {
+    const conflict = scheduleErrorMessage(error)
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 })
     // Surfaces the real Supabase error (e.g. an FK violation for a bad
     // teacher_id) instead of a generic 500.
     return NextResponse.json({ error: error.message }, { status: 400 })

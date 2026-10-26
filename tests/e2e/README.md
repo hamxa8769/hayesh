@@ -8,6 +8,8 @@ stack. They refuse to run against a hosted project.
 ```bash
 # one-time: Docker + Supabase CLI
 npx supabase start            # in any scratch folder with `npx supabase init`
+                              # first set [auth.mfa.totp] enroll_enabled/verify_enabled = true
+                              # in supabase/config.toml (admin two-factor test)
 
 # apply the schema + migrations to the local DB
 npm run db:local:reset

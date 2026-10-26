@@ -22,7 +22,7 @@ export async function POST(
   const { id } = await params
   if (!idSchema.safeParse(id).success) return NextResponse.json({ error: "Review not found" }, { status: 404 })
 
-  const limit = rateLimit(`gig-review-reply:${userId}`, 20, 60_000)
+  const limit = await rateLimit(`gig-review-reply:${userId}`, 20, 60_000)
   if (!limit.ok) {
     return NextResponse.json(
       { error: `Too many requests. Try again in ${limit.retryAfterSeconds}s` },

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -110,6 +111,14 @@ export async function PATCH(
     return NextResponse.json({ error: "Ticket not found" }, { status: 404 })
   }
 
+  await logAdminAction({
+    actorId: auth.userId,
+    action: "ticket.update",
+    targetTable: "support_tickets",
+    targetId: ticket_id,
+    after: updates,
+    request,
+  })
   return NextResponse.json({ id: data.id })
 }
 
@@ -163,5 +172,13 @@ export async function POST(
     return NextResponse.json({ error: "Message was not created" }, { status: 400 })
   }
 
+  await logAdminAction({
+    actorId: auth.userId,
+    action: "ticket.reply",
+    targetTable: "support_tickets",
+    targetId: ticket_id,
+    after: { is_internal },
+    request,
+  })
   return NextResponse.json({ id: data.id })
 }

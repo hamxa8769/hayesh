@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import {
@@ -144,6 +145,14 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
+  await logAdminAction({
+    actorId: auth.userId,
+    action: "branding.update",
+    targetTable: "platform_settings",
+    targetId: rows.map((r) => r.key).join(",").slice(0, 200),
+    after: parsed.data.branding as Record<string, unknown>,
+    request,
+  })
   const branding = await loadBranding()
   return NextResponse.json({ branding })
 }

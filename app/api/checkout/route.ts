@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response
   const { user } = auth
 
-  const limited = rateLimit(`checkout:${user.userId}`, 10, 60_000)
+  const limited = await rateLimit(`checkout:${user.userId}`, 10, 60_000)
   if (!limited.ok) return NextResponse.json({ error: "Too many checkout attempts. Please wait a minute." }, { status: 429 })
 
   let body: unknown

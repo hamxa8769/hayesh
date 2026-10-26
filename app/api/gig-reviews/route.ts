@@ -107,7 +107,7 @@ export async function POST(request: Request): Promise<NextResponse<{ review: Gig
   if (!auth.ok) return auth.response
   const { userId } = auth.user
 
-  const limit = rateLimit(`gig-review:${userId}`, 10, 60_000)
+  const limit = await rateLimit(`gig-review:${userId}`, 10, 60_000)
   if (!limit.ok) {
     return NextResponse.json(
       { error: `Too many requests. Try again in ${limit.retryAfterSeconds}s` },

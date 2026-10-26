@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { logAdminAction } from "@/lib/admin/audit"
 import { requireUser } from "@/lib/auth/require-user"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { decryptField } from "@/lib/crypto/field-encryption"
@@ -89,6 +90,14 @@ export async function GET(request: Request) {
         .join(",")
     )
   }
+
+  await logAdminAction({
+    actorId: auth.user.userId,
+    action: "payout.export",
+    targetTable: "payouts",
+    after: { status, rows: rows.length },
+    request,
+  })
 
   const date = new Date().toISOString().slice(0, 10)
   return new NextResponse(lines.join("\r\n") + "\r\n", {

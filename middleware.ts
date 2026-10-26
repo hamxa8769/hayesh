@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { UserRole } from '@/types/database'
+import { adminMfaDecision, MFA_CHALLENGE_PATH, MFA_SETUP_PATH } from '@/lib/auth/mfa'
 
 const PROTECTED: Record<string, UserRole> = {
   '/admin': 'admin',
@@ -93,6 +94,20 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Admin API: enforce two-factor auth. Each route still does its own auth;
+  // this only adds the MFA gate for signed-in admins (everyone else passes
+  // through untouched and is rejected by the route itself).
+  if (user && (path === '/api/admin' || path.startsWith('/api/admin/')) && (await isAdminUser(user.id))) {
+    const decision = await adminMfaDecision(supabase, user)
+    if (decision === 'challenge') {
+      return NextResponse.json({ error: 'Two-factor verification required' }, { status: 401 })
+    }
+    if (decision === 'setup') {
+      return NextResponse.json({ error: 'Set up two-factor authentication first' }, { status: 403 })
+    }
+    return response
+  }
+
   // Signed-out visitors get the marketing landing page at "/". A signed-in user
   // gets the /explore marketplace instead — their role dashboard is still one
   // click away via the navbar. /explore is not a protected route, so this
@@ -151,6 +166,20 @@ export async function middleware(request: NextRequest) {
 
   if (profile.role !== requiredRole && profile.role !== 'admin') {
     return NextResponse.redirect(new URL(getHome(profile.role), request.url))
+  }
+
+  // Admin pages: two-factor auth gate (see lib/auth/mfa.ts).
+  if (requiredRole === 'admin' && profile.role === 'admin') {
+    const decision = await adminMfaDecision(supabase, user)
+    if (decision === 'challenge') {
+      const mfaUrl = new URL(MFA_CHALLENGE_PATH, request.url)
+      mfaUrl.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search)
+      return NextResponse.redirect(mfaUrl)
+    }
+    // The security page stays reachable so an admin can finish enrolling.
+    if (decision === 'setup' && path !== MFA_SETUP_PATH && !path.startsWith(MFA_SETUP_PATH + '/')) {
+      return NextResponse.redirect(new URL(MFA_SETUP_PATH + '?setup=1', request.url))
+    }
   }
 
   return response

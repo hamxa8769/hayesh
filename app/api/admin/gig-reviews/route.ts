@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { requireUser } from "@/lib/auth/require-user"
 import { createAdminClient } from "@/lib/supabase/admin"
 import type { GigReview } from "@/types/database"
@@ -93,5 +94,12 @@ export async function POST(request: Request): Promise<NextResponse<{ ok: true } 
     console.error("[admin/gig-reviews] action failed", error.message)
     return NextResponse.json({ error: "Could not update the review" }, { status: 500 })
   }
+  await logAdminAction({
+    actorId: auth.user.userId,
+    action: action === "delete" ? "review.delete" : action === "publish" ? "review.publish" : "review.hide",
+    targetTable: "gig_reviews",
+    targetId: id,
+    request,
+  })
   return NextResponse.json({ ok: true })
 }

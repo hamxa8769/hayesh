@@ -1,11 +1,20 @@
+import * as Sentry from "@sentry/nextjs"
 import type { Instrumentation } from "next"
 
-export function register(): void {}
+export async function register(): Promise<void> {
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    await import("./sentry.server.config")
+  }
+  if (process.env.NEXT_RUNTIME === "edge") {
+    await import("./sentry.edge.config")
+  }
+}
 
 /**
  * Every unhandled server error (pages, route handlers, server actions)
  * is logged as one structured JSON line, which Vercel's log drain / any
- * log search can alert on. No request bodies or headers are logged.
+ * log search can alert on, and forwarded to Sentry (a no-op without a DSN).
+ * No request bodies or headers are logged.
  */
 export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
   const err = error as Error & { digest?: string }
@@ -22,4 +31,5 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
       time: new Date().toISOString(),
     })
   )
+  Sentry.captureRequestError(error, request, context)
 }

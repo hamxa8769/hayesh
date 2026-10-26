@@ -120,7 +120,7 @@ export async function POST(request: Request): Promise<NextResponse<{ conversatio
   if (!auth.ok) return auth.response
   const { userId, role } = auth.user
 
-  const limit = rateLimit(`conv:${userId}`, 30, 60_000)
+  const limit = await rateLimit(`conv:${userId}`, 30, 60_000)
   if (!limit.ok) {
     return NextResponse.json(
       { error: `Too many requests. Try again in ${limit.retryAfterSeconds}s` },

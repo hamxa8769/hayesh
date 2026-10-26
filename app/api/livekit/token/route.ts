@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createLiveKitToken } from '@/lib/livekit/tokens'
+import { isWithinJoinWindow, joinWindow } from '@/lib/classes/join-window'
+import { rateLimit } from '@/lib/security/rate-limit'
 
 /**
  * POST /api/livekit/token — mints a short-lived LiveKit access token for a
@@ -63,6 +65,14 @@ export async function POST(request: Request): Promise<NextResponse<TokenSuccessR
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const limited = await rateLimit(`livekit-token:${user.id}`, 30, 60_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
+  }
+
   let body: unknown
   try {
     body = await request.json()
@@ -79,7 +89,7 @@ export async function POST(request: Request): Promise<NextResponse<TokenSuccessR
 
   const { data: meeting, error: meetingError } = await adminClient
     .from('meetings')
-    .select('id, organizer_id, participant_id, room_url, status, waiting_room')
+    .select('id, organizer_id, participant_id, room_url, status, waiting_room, timetable_slot_id, scheduled_at, duration_minutes')
     .eq('id', parsed.data.meeting_id)
     .maybeSingle()
 
@@ -118,8 +128,34 @@ export async function POST(request: Request): Promise<NextResponse<TokenSuccessR
     return NextResponse.json({ error: 'You are not authorised to join this meeting' }, { status: 403 })
   }
 
+  const isTimetableClass = meeting.timetable_slot_id != null
+
+  if (isTimetableClass && meeting.status === 'cancelled') {
+    return NextResponse.json({ error: 'This class was cancelled' }, { status: 409 })
+  }
+
   if (meeting.status === 'cancelled') {
     return NextResponse.json({ error: 'This meeting has been cancelled' }, { status: 400 })
+  }
+
+  // Timetable classes only open shortly before they start. The host and admins
+  // may join any time up to the end of the window; ad-hoc meetings are unchanged.
+  if (isTimetableClass) {
+    const timing = {
+      scheduled_at: meeting.scheduled_at as string,
+      duration_minutes: (meeting.duration_minutes as number | null) ?? null,
+    }
+    const { opensAt, closesAt } = joinWindow(timing)
+    const now = new Date()
+    if (now > closesAt) {
+      return NextResponse.json({ error: 'This class has ended' }, { status: 403 })
+    }
+    if (!isOrganizer && !isAdmin && !isWithinJoinWindow(timing, now)) {
+      return NextResponse.json(
+        { error: now < opensAt ? 'Class opens 10 minutes before it starts' : 'This class has ended' },
+        { status: 403 }
+      )
+    }
   }
 
   const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL
@@ -145,7 +181,7 @@ export async function POST(request: Request): Promise<NextResponse<TokenSuccessR
   // immediately too UNLESS this meeting has an active waiting room — a null
   // waiting_room (e.g. a row inserted before migration 018 ran) is treated as
   // false so this never accidentally locks out an existing meeting.
-  const admitted = isOrganizer || isAdmin || !meeting.waiting_room
+  const admitted = isOrganizer || isAdmin || isTimetableClass || !meeting.waiting_room
 
   let token: string
   try {

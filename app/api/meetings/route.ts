@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { notifyUser } from '@/lib/notifications'
 import { filterInvitable } from '@/lib/meetings/invitable'
 import type { Meeting } from '@/types/database'
+import { rateLimit } from '@/lib/security/rate-limit'
+import { scheduleErrorMessage } from '@/lib/classes/errors'
 
 /**
  * /api/meetings — list, create, and update scheduled video meetings.
@@ -198,6 +200,14 @@ export async function POST(request: Request): Promise<
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const limited = await rateLimit(`meeting-create:${user.id}`, 20, 3_600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
+  }
+
   let body: unknown
   try {
     body = await request.json()
@@ -306,6 +316,8 @@ export async function POST(request: Request): Promise<
     .maybeSingle()
 
   if (meetingError) {
+    const conflict = scheduleErrorMessage(meetingError)
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 })
     return NextResponse.json({ error: meetingError.message }, { status: 400 })
   }
 
@@ -431,6 +443,8 @@ export async function PATCH(request: Request): Promise<NextResponse<Meeting | Me
     .maybeSingle()
 
   if (updateError) {
+    const conflict = scheduleErrorMessage(updateError)
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 })
     return NextResponse.json({ error: updateError.message }, { status: 400 })
   }
 

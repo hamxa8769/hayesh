@@ -3,6 +3,7 @@ import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { notifyUser } from "@/lib/notifications"
 import type { DemoBooking, DemoBookingStatus } from "@/types/database"
+import { scheduleErrorMessage } from "@/lib/classes/errors"
 
 /**
  * PATCH /api/teacher/demo-bookings — a teacher confirms, declines, or marks
@@ -122,6 +123,8 @@ export async function PATCH(
     .maybeSingle()
 
   if (error) {
+    const conflict = scheduleErrorMessage(error)
+    if (conflict) return NextResponse.json({ error: conflict }, { status: 409 })
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
 

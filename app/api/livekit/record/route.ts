@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { startRoomRecording, stopRoomRecording } from '@/lib/livekit/egress'
+import { meetingIdFromRoomName } from '@/lib/livekit/rooms'
 
 /**
  * POST /api/livekit/record — host/admin-only: start or stop recording a room.
@@ -40,8 +41,6 @@ interface RecordErrorResponse {
   error: string
 }
 
-const ROOM_NAME_PATTERN = /^hayesh-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
-
 export async function POST(
   request: Request
 ): Promise<NextResponse<RecordStartResponse | RecordStopResponse | RecordErrorResponse>> {
@@ -68,13 +67,17 @@ export async function POST(
 
   const { room, action, egress_id: egressId } = parsed.data
 
-  const roomNameMatch = room.match(ROOM_NAME_PATTERN)
-  if (!roomNameMatch) {
+  const adminClient = createAdminClient()
+
+  // `hayesh-<uuid>` -> meeting id, else a meeting whose room_url equals the room name.
+  let meetingId = meetingIdFromRoomName(room)
+  if (!meetingId) {
+    const { data: byRoom } = await adminClient.from('meetings').select('id').eq('room_url', room).maybeSingle()
+    meetingId = (byRoom as { id: string } | null)?.id ?? null
+  }
+  if (!meetingId) {
     return NextResponse.json({ error: 'Invalid room name' }, { status: 400 })
   }
-  const meetingId = roomNameMatch[1]
-
-  const adminClient = createAdminClient()
 
   const { data: meeting, error: meetingError } = await adminClient
     .from('meetings')
@@ -102,6 +105,13 @@ export async function POST(
   if (action === 'start') {
     try {
       const { egressId: newEgressId } = await startRoomRecording(room)
+      const { error: insertError } = await adminClient
+        .from('meeting_recordings')
+        .upsert(
+          { meeting_id: meeting.id, egress_id: newEgressId, status: 'recording' },
+          { onConflict: 'egress_id', ignoreDuplicates: true }
+        )
+      if (insertError) console.error('meeting_recordings insert failed', insertError.message)
       return NextResponse.json({ ok: true, egressId: newEgressId })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Failed to start recording'

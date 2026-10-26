@@ -73,6 +73,13 @@ supabase-migrations/021-reviews-ratings.sql
 supabase-migrations/022-featured-listings.sql
 supabase-migrations/023-ai-studio-catalogue.sql
 supabase-migrations/024-meeting-attachments.sql
+supabase-migrations/025-gig-reviews-and-inquiries.sql
+supabase-migrations/026-admin-audit-log.sql         ← append-only admin audit log
+supabase-migrations/027-payment-webhook-events.sql  ← REQUIRED before deploying (Stripe webhook uses it)
+supabase-migrations/028-performance-indexes.sql
+supabase-migrations/029-pg-cron-scheduler.sql       ← then add the 2 Vault secrets (see 3.6)
+supabase-migrations/030-mfa-rls-enforcement.sql     ← re-run whenever new tables are added
+supabase-migrations/031-classroom-timetable.sql     ← Sprint 2 classroom; then re-run 030
 ```
 
 Every migration has been verified against a real Postgres (local
@@ -120,9 +127,72 @@ the filled ones. Until at least one is filled, customers see "being set up".
 2. Put the secret key + signing secret in Vercel, redeploy. The "Card" tab
    appears on checkout automatically.
 
-### 3.6 Cron
-`vercel.json` schedules `/api/cron/commerce` daily at 04:00 UTC. Confirm it
-appears under Vercel → Settings → Cron Jobs after deploy.
+### 3.6 Cron (free-tier friendly)
+Vercel Hobby only runs crons once a day, so the real schedule lives in the
+database (migration 029: `pg_cron` + `pg_net`, available on Supabase Free).
+After running 029, add two Vault secrets once in the SQL editor:
+
+```sql
+select vault.create_secret('https://YOUR-DOMAIN', 'hayesh_app_url');
+select vault.create_secret('<same value as CRON_SECRET in Vercel>', 'hayesh_cron_secret');
+```
+
+`/api/cron/commerce` then runs hourly (`7 * * * *`). Check with
+`select * from cron.job_run_details order by start_time desc limit 10;`.
+The daily Vercel cron in `vercel.json` stays as a safety net.
+
+### 3.6b Security hardening (Sprint 1)
+* **Admin two-factor:** each admin opens **Admin → Security**, scans the QR
+  code with Google Authenticator / Authy and enters a code. When every admin
+  is enrolled, set `ADMIN_MFA_REQUIRED=true` in Vercel. Lost phone: Supabase
+  Dashboard → Authentication → Users → user → remove the MFA factor.
+  Migration 030 also enforces it in the database (aal2 required for any
+  account that has a factor).
+* **Audit log:** Admin → Audit log lists every admin action on money,
+  roles, approvals and settings. Rows cannot be edited or deleted.
+* **Rate limiting:** create a free Upstash Redis database → set
+  `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`. Without them limits
+  are per server instance only.
+* **Error monitoring:** free Sentry project (Next.js) → set
+  `NEXT_PUBLIC_SENTRY_DSN`; for readable stack traces also
+  `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
+* **CSP:** shipped as `Content-Security-Policy-Report-Only`. After a week
+  with no unexpected violations (browser console / Sentry), switch the header
+  name in `next.config.ts` to `Content-Security-Policy`.
+* **Backups (Supabase Free has none):** GitHub → Settings → Secrets → add
+  `SUPABASE_DB_URL` (Supabase → Connect → *Session pooler* URI) and
+  `BACKUP_PASSPHRASE` (also keep it in your password manager). The
+  *DB backup* workflow then stores an encrypted dump every Sunday (30-day
+  retention); run it once by hand (Actions → DB backup → Run workflow) and
+  test a restore into a scratch project.
+* **Automatic payments later:** see `docs/PAYMENTS-AUTOMATION.md`.
+
+### 3.6c Classroom (Sprint 2)
+* **Timetable:** teachers open **Timetable**, add weekly classes and pick
+  their enrolled students. Classes for the next 14 days are created
+  automatically (every 10 minutes via pg_cron → `/api/cron/classes`) for
+  students whose tuition is **active**; lapsed students drop out of future
+  classes automatically. Double booking (class vs class vs demo) is blocked
+  by the database.
+* **Join:** the "Join class" button on teacher/parent dashboards opens 10
+  minutes before start and closes 15 minutes after the end. Reminders go out
+  1 hour before.
+* **LiveKit webhook (needed for attendance, no-shows, recordings):** LiveKit
+  Cloud → project → Settings → Webhooks → add
+  `https://<your-domain>/api/webhooks/livekit` (signed with your existing
+  `LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET`).
+* **Recordings on Cloudflare R2 (free 10 GB):** R2 → create bucket
+  `hayesh-recordings` → *Manage API tokens* (Object Read & Write on that
+  bucket) → set in Vercel:
+  `LIVEKIT_EGRESS_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com`,
+  `LIVEKIT_EGRESS_S3_BUCKET`, `LIVEKIT_EGRESS_S3_ACCESS_KEY`,
+  `LIVEKIT_EGRESS_S3_SECRET`, `LIVEKIT_EGRESS_S3_REGION=auto`.
+* **Retention:** Admin → Settings → *Class recordings — keep for* 30 or 90
+  days (platform default); per-teacher override on the teacher's admin card.
+  Expired recordings are deleted from R2 automatically.
+* **Plans:** Vercel **Hobby is for non-commercial use** — move to Pro before
+  taking real payments. Supabase Free pauses after 7 days without traffic and
+  has 500 MB DB / 1 GB storage — upgrade when users arrive.
 
 ### 3.7 Smoke test on the live domain (15 minutes)
 1. Admin: fill payment accounts; set commission + fees.

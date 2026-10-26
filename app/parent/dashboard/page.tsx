@@ -5,6 +5,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { Search, CreditCard } from "lucide-react"
 import { JarvisCard } from "@/components/ui/jarvis-card"
+import { UpcomingClasses } from "@/components/classes/UpcomingClasses"
 import { DashboardFeed } from "@/components/parent/DashboardFeed"
 import { useSupabase } from "@/hooks/useSupabase"
 import { formatPKR, formatDate } from "@/lib/utils/format"
@@ -32,6 +33,8 @@ export default function ParentDashboard() {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
         <h2 className="font-display text-2xl font-bold">Parent Dashboard</h2>
       </motion.div>
+
+      <UpcomingClasses compact viewAllHref="/parent/timetable" />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <JarvisCard glow="cyan" className="p-5">

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { createClient } from "@/lib/supabase/server"
 import { notifyAdmins } from "@/lib/notifications"
+import { rateLimit } from "@/lib/security/rate-limit"
 
 /**
  * POST /api/student-requests — a parent asks for a teacher for one of their
@@ -45,6 +46,14 @@ export async function POST(
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const limited = await rateLimit(`student-request:${user.id}`, 10, 3_600_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: `Too many requests — try again in ${limited.retryAfterSeconds} seconds` },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    )
   }
 
   let body: unknown

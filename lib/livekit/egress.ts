@@ -112,12 +112,16 @@ export async function startRoomRecording(roomName: string): Promise<{ egressId: 
     file_outputs: [
       {
         file_type: 'MP4',
-        filepath: `hayesh/${roomName}-${Date.now()}.mp4`,
+        filepath: `recordings/${roomName}/${Date.now()}.mp4`,
         s3: {
           access_key: process.env.LIVEKIT_EGRESS_S3_ACCESS_KEY,
           secret: process.env.LIVEKIT_EGRESS_S3_SECRET,
           bucket: process.env.LIVEKIT_EGRESS_S3_BUCKET,
           region: process.env.LIVEKIT_EGRESS_S3_REGION,
+          // Optional: set for Cloudflare R2 / MinIO; leave unset for AWS S3.
+          ...(process.env.LIVEKIT_EGRESS_S3_ENDPOINT
+            ? { endpoint: process.env.LIVEKIT_EGRESS_S3_ENDPOINT, force_path_style: true }
+            : {}),
         },
       },
     ],

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { requireUser } from "@/lib/auth/require-user"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { markTransactionPaid, refundTransaction, rejectTransaction } from "@/lib/payments/settle"
@@ -92,6 +93,15 @@ export async function POST(request: Request) {
   if (input.action === "refund") {
     const refund = await refundTransaction(input.transaction_id, input.reason, auth.user.userId)
     if (!refund.ok) return NextResponse.json({ error: refund.error }, { status: refund.status })
+    await logAdminAction({
+      actorId: auth.user.userId,
+      action: "transaction.refund",
+      targetTable: "transactions",
+      targetId: input.transaction_id,
+      after: { status: refund.transaction.status },
+      reason: input.reason,
+      request,
+    })
     return NextResponse.json({ transaction: refund.transaction, already_settled: false })
   }
   const result =
@@ -100,5 +110,14 @@ export async function POST(request: Request) {
       : await rejectTransaction(input.transaction_id, input.reason, auth.user.userId)
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 409 })
+  await logAdminAction({
+    actorId: auth.user.userId,
+    action: input.action === "confirm" ? "transaction.confirm" : "transaction.reject",
+    targetTable: "transactions",
+    targetId: input.transaction_id,
+    after: { status: result.transaction.status, already_settled: result.alreadySettled },
+    reason: input.action === "reject" ? input.reason : null,
+    request,
+  })
   return NextResponse.json({ transaction: result.transaction, already_settled: result.alreadySettled })
 }

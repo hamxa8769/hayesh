@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
+import { logAdminAction } from "@/lib/admin/audit"
 import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 
@@ -146,5 +147,13 @@ export async function POST(
   }
 
   const row = data as { id: string; featured: boolean; endorsed: boolean }
+  await logAdminAction({
+    actorId: auth.userId,
+    action: `teacher.${action}`,
+    targetTable: "teachers",
+    targetId: teacher_id,
+    after: update,
+    request,
+  })
   return NextResponse.json({ id: row.id, featured: row.featured, endorsed: row.endorsed })
 }
